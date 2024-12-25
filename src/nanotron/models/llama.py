@@ -871,11 +871,11 @@ class LlamaModel(nn.Module):
             module_output_keys={"logits"},
         )
 
-
+        self.exit_layer_to_index = {config.exit_layer_indices[i]:i for i in range(len(config.exit_layer_indices))}
         # Create auxiliary exit modules
-        self.exit_modules = {
-            config.exit_layer_indices[i]: nn.ModuleList([
-                module for module in [
+        self.exit_modules = nn.ModuleList([
+            nn.ModuleList(
+                [module for module in [
                     PipelineBlock(
                         p2p=self.p2p,
                         module_builder=LlamaDecoderLayer,
@@ -909,10 +909,10 @@ class LlamaModel(nn.Module):
                         },
                         module_input_keys={"x"},
                         module_output_keys={"logits"},
-                    ) if config.tie_word_embeddings else None
+                    ) if not config.tie_word_embeddings else None
                 ] if module is not None  # Filter out None modules
-            ]) for i in range(len(config.exit_layer_indices))
-        }
+            ]) for _ in range(len(config.exit_layer_indices))
+        ])
 
         self.cast_to_fp32 = PipelineBlock(
             p2p=self.p2p,
@@ -948,19 +948,36 @@ class LlamaModel(nn.Module):
             hidden_encoder_states = encoder_block(**hidden_encoder_states)
             
             #Sorted exits
-            if encoder_block_idx in self.config.exit_layer_indices:
-                # Get the index in the exit_modules list
-                exit_module_list = self.exit_modules[encoder_block_idx] 
-                # Apply the exit module transformations
-                exit_hidden_states = {"hidden_states": hidden_encoder_states["hidden_states"], 
-                                    "sequence_mask": hidden_encoder_states["sequence_mask"]}
-                if exit_module_list[0] is not None:
-                    exit_hidden_states = exit_module_list[0](**hidden_encoder_states)
-                exit_hidden_states = exit_module_list[1](input=exit_hidden_states["hidden_states"])["hidden_states"]
-                if exit_module_list[2] is not None:
-                    exit_logits = exit_module_list[2](x=exit_hidden_states)["logits"]
+            if encoder_block_idx+1 in self.config.exit_layer_indices:
+                exit_module_list = self.exit_modules[self.exit_layer_to_index[encoder_block_idx+1]]
+
+                # Process the exit module list dynamically
+                exit_hidden_states = {
+                    "hidden_states": hidden_encoder_states["hidden_states"],
+                    "input": hidden_encoder_states["hidden_states"],
+                    "x": hidden_encoder_states["hidden_states"],
+                    "sequence_mask": hidden_encoder_states["sequence_mask"]
+                }
+
+                for module in exit_module_list:
+                    if isinstance(module, PipelineBlock):
+                        input_keys = module.module_input_keys
+                        output_keys = module.module_output_keys
+
+                        # Extract relevant inputs for the module
+                        inputs = {key: exit_hidden_states[key] for key in input_keys if key in exit_hidden_states}
+                        # Run the module
+                        outputs = module(**inputs)
+
+                        # Update exit_hidden_states with the module's outputs
+                        exit_hidden_states.update({key: outputs[key] for key in output_keys if key in outputs})
+
+                # Compute logits
+                if exit_hidden_states.get("hidden_states") is not None and self.config.tie_word_embeddings:
+                    exit_logits = self.lm_head(x=exit_hidden_states["hidden_states"])["logits"]
                 else:
-                    exit_logits = self.lm_head(x=hidden_states)["logits"]
+                    exit_logits = exit_hidden_states["logits"]
+                
                 fp32_sharded_exit_logits = self.cast_to_fp32(x=exit_logits)["output"]
                 total_exit_logits[encoder_block_idx] = fp32_sharded_exit_logits
 

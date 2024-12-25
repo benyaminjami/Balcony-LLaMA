@@ -543,11 +543,18 @@ class DistributedTrainer:
         # Compute DP average loss and overlap with optimizer step
         if isinstance(outputs[0]["loss"], torch.Tensor):
             # This is an average on only one data rank.
-            loss_avg = torch.stack(
-                [output["loss"] for output in outputs]
-            ).sum()  # already divided by n_micro_batches_per_batch
-            # sync loss across DP
-            handle = dist.all_reduce(loss_avg, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.AVG)
+            def dp_reduce_loss(outputs, key):
+                loss_avg = torch.stack(
+                    [output[key] for output in outputs]
+                ).sum()  # already divided by n_micro_batches_per_batch
+                # sync loss across DP
+                handle = dist.all_reduce(loss_avg, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.AVG)
+                return loss_avg, handle
+            reduced_outputs = {}
+            for key in outputs[0]:
+                avg, handle = dp_reduce_loss(outputs, key)
+                reduced_outputs[key] = avg
+            loss_avg, handle = dp_reduce_loss(outputs, "loss")
         else:
             loss_avg = None
             handle = None
@@ -578,7 +585,7 @@ class DistributedTrainer:
 
         self.post_train_step()
 
-        return outputs, loss_avg
+        return reduced_outputs, loss_avg
 
     def validation_step(self, dataloader: Iterator[Dict[str, Union[torch.Tensor, TensorPointer]]]) -> Iterable[Dict]:
         outputs = self.pipeline_engine.validate_batch_iter(
@@ -629,6 +636,13 @@ class DistributedTrainer:
                 LogItem("model_tflops_per_gpu", model_tflops, "human_format"),  # , ".2f"),
                 LogItem("hardware_tflops_per_gpu", hardware_tflops, "human_format"),  # , ".2f"),
             ]
+            
+            for key in outputs:
+                if key == "loss":
+                    continue
+                log_entries.append(
+                    LogItem(key, outputs[key].item(), "human_format")
+                )
 
             if self.config.optimizer.clip_grad is not None:
                 log_entries.append(LogItem("grad_norm", self.grad_norm_unclipped.item(), "human_format"))  # , ".3f"))
