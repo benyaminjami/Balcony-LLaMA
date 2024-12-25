@@ -54,6 +54,8 @@ class LlamaConfig:
     tie_word_embeddings: bool = False
     use_cache: bool = True
     vocab_size: int = 32000
+    exit_layer_indices: Optional[list] = None
+    exit_decoder_layer: bool = False
 
     def __post_init__(self):
         # NOTE: user don't set self._init_method, ModelArgs will set it
