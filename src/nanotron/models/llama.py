@@ -873,44 +873,46 @@ class LlamaModel(nn.Module):
 
 
         # Create auxiliary exit modules
-        self.exit_modules = {config.exit_layer_indices[i]:
-            nn.ModuleList([
-                (PipelineBlock(
-                    p2p=self.p2p,
-                    module_builder=LlamaDecoderLayer,
-                    module_kwargs={
-                        "config": config,
-                        "parallel_config": parallel_config,
-                        "tp_pg": parallel_context.tp_pg,
-                        "layer_idx": config.num_hidden_layers + i,  # Continue layer indexing
-                    },
-                    module_input_keys={"hidden_states", "sequence_mask"},
-                    module_output_keys={"hidden_states", "sequence_mask"},
-                ) if config.exit_decoder_layer else None),
-                PipelineBlock(
-                    p2p=self.p2p,
-                    module_builder=TritonRMSNorm,
-                    module_kwargs={"hidden_size": config.hidden_size, "eps": config.rms_norm_eps},
-                    module_input_keys={"input"},
-                    module_output_keys={"hidden_states"}),
-                (PipelineBlock(
-                    p2p=self.p2p,
-                    module_builder=TensorParallelColumnLinear,
-                    module_kwargs={
-                        "in_features": config.hidden_size,
-                        "out_features": config.vocab_size,
-                        "pg": parallel_context.tp_pg,
-                        "bias": False,
-                        "mode": self.tp_mode,
-                        "async_communication": tp_linear_async_communication,
-                        "tp_recompute_allgather": parallel_config.tp_recompute_allgather,
-                    },
-                    module_input_keys={"x"},
-                    module_output_keys={"logits"},
-                ) if config.tie_word_embeddings else None)
+        self.exit_modules = {
+            config.exit_layer_indices[i]: nn.ModuleList([
+                module for module in [
+                    PipelineBlock(
+                        p2p=self.p2p,
+                        module_builder=LlamaDecoderLayer,
+                        module_kwargs={
+                            "config": config,
+                            "parallel_config": parallel_config,
+                            "tp_pg": parallel_context.tp_pg,
+                            "layer_idx": config.num_hidden_layers + i,  # Continue layer indexing
+                        },
+                        module_input_keys={"hidden_states", "sequence_mask"},
+                        module_output_keys={"hidden_states", "sequence_mask"},
+                    ) if config.exit_decoder_layer else None,
+                    PipelineBlock(
+                        p2p=self.p2p,
+                        module_builder=TritonRMSNorm,
+                        module_kwargs={"hidden_size": config.hidden_size, "eps": config.rms_norm_eps},
+                        module_input_keys={"input"},
+                        module_output_keys={"hidden_states"}
+                    ),
+                    PipelineBlock(
+                        p2p=self.p2p,
+                        module_builder=TensorParallelColumnLinear,
+                        module_kwargs={
+                            "in_features": config.hidden_size,
+                            "out_features": config.vocab_size,
+                            "pg": parallel_context.tp_pg,
+                            "bias": False,
+                            "mode": self.tp_mode,
+                            "async_communication": tp_linear_async_communication,
+                            "tp_recompute_allgather": parallel_config.tp_recompute_allgather,
+                        },
+                        module_input_keys={"x"},
+                        module_output_keys={"logits"},
+                    ) if config.tie_word_embeddings else None
+                ] if module is not None  # Filter out None modules
             ]) for i in range(len(config.exit_layer_indices))
         }
-
 
         self.cast_to_fp32 = PipelineBlock(
             p2p=self.p2p,
