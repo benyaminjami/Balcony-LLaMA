@@ -2,7 +2,7 @@
 NODES=(8)  # List of node numbers
 MASTER_NODE=8  # Specify which node number is the master
 SYNC_MASTER=false  # Flag to determine whether to sync and check on the master node
-RUN_NAME="Smollm_1B_Sorted"  # Specify a unique name for this run
+RUN_NAME="Smollm_1B_Sorted_Balcony"  # Specify a unique name for this run
 NNODES=${#NODES[@]}
 GRAD_ACCUMULATION=$((36 / NNODES))
 CONFIG_FILE=/work/benyamin/smollm/nanotron/pre-training/smollm2/config_smollm2_1B_sorted_balcony.yaml
