@@ -65,6 +65,8 @@ model:
     freeze: true
     unfreeze_layers: 
       - exit_modules
+    new_layers:
+      - exit_modules
 optimizer:
   accumulate_grad_in_fp32: true
   clip_grad: 1.0
