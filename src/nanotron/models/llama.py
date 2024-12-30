@@ -911,7 +911,7 @@ class LlamaModel(nn.Module):
                         module_output_keys={"logits"},
                     ) if not config.tie_word_embeddings else None
                 ] if module is not None  # Filter out None modules
-            ]) for _ in range(len(config.exit_layer_indices))
+            ]) for i in range(len(config.exit_layer_indices))
         ])
 
         self.cast_to_fp32 = PipelineBlock(
