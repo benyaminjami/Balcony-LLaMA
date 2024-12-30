@@ -1068,6 +1068,7 @@ class LlamaForTraining(NanotronModel):
     ):
         super().__init__()
         self.model = LlamaModel(config=config, parallel_context=parallel_context, parallel_config=parallel_config)
+        
         self.loss = PipelineBlock(
             p2p=self.model.p2p,
             module_builder=Loss,
@@ -1079,6 +1080,8 @@ class LlamaForTraining(NanotronModel):
             },
             module_output_keys={"loss"},
         )
+        self.kldiv_loss_func = nn.KLDivLoss()
+        self.kldiv_loss = config.kldiv_loss
         self.parallel_context = parallel_context
         self.config = config
         self.parallel_config = parallel_config
@@ -1106,6 +1109,24 @@ class LlamaForTraining(NanotronModel):
             log_loss[f'exit_loss_{exit_layer}'] = loss
         output = {"loss": sum(loss_list)/len(loss_list)}
         output.update(log_loss)
+        
+        if self.kldiv_loss:
+            loss_list = []
+            log_loss = {}
+            last_layer = list(sharded_logits.keys()).max()
+            last_shared_logits = sharded_logits[last_layer]
+            for exit_layer in list(sharded_logits.keys()):
+                if exit_layer == last_layer:
+                    continue
+                loss = self.kldiv_loss_func(
+                    input=torch.functional.log_softmax(sharded_logits[exit_layer]),
+                    target=torch.functional.softmax(last_shared_logits)    
+                )
+                loss_list.append(loss)
+                log_loss[f'kd_exit_loss_{exit_layer}'] = loss
+            output = {"loss": sum(loss_list)/len(loss_list)}
+            output.update(log_loss)
+        
         return output
 
     @torch.no_grad()

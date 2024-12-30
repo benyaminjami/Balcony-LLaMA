@@ -720,6 +720,13 @@ class DistributedTrainer:
 
         model = self._init_model_instance()
         model = self._load_model_checkpoint(model)
+        
+        if self.model_config.freeze:
+            for name, param in model.named_parameters():
+                if any([uf in name for uf in self.model_config.unfreeze_layers]):
+                    continue
+                param.requires_grad = False
+
         return model
 
     def _init_model_instance(self) -> NanotronModel:
