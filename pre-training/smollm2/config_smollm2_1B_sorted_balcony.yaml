@@ -12,8 +12,8 @@ data_stages:
     dataset:
       dataset_folder:
       # - /work/benyamin/datasets/smollm-python
-      - /work/benyamin/smollm/datasets/smollm-cosmo
-      - /work/benyamin/smollm/datasets/smollm-fineweb
+      - /work/benyamin/datasets/smollm-cosmo
+      # - /work/benyamin/datasets/smollm-fineweb
     num_loading_workers: 0
     seed: 8
   name: stable phase
@@ -62,18 +62,19 @@ model:
       - 4
       - 8
       - 12
-    freeze: true
+    freeze: false
     unfreeze_layers: 
       - exit_modules
     new_layers:
       - exit_modules
+    kldiv_loss: false
 optimizer:
   accumulate_grad_in_fp32: true
   clip_grad: 1.0
   learning_rate_scheduler:
-    learning_rate: 0.0005
-    lr_decay_starting_step: 100000
-    lr_decay_steps: 20000
+    learning_rate: 0.00005
+    lr_decay_starting_step: 90000
+    lr_decay_steps: 10000
     lr_decay_style: 1-sqrt
     lr_warmup_steps: 2000
     lr_warmup_style: linear
@@ -107,5 +108,5 @@ tokens:
   limit_val_batches: 0
   micro_batch_size: 4
   sequence_length: 2048
-  train_steps: 120000
+  train_steps: 100000
   val_check_interval: 100
