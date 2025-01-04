@@ -1,6 +1,6 @@
 # Define the node numbers and the master node
-NODES=(8)  # List of node numbers
-MASTER_NODE=8  # Specify which node number is the master
+NODES=(7)  # List of node numbers
+MASTER_NODE=7  # Specify which node number is the master
 SYNC_MASTER=false  # Flag to determine whether to sync and check on the master node
 RUN_NAME="Smollm_1B_Sorted_Balcony"  # Specify a unique name for this run
 NNODES=${#NODES[@]}

@@ -62,7 +62,7 @@ model:
       - 4
       - 8
       - 12
-    freeze: false
+    freeze: true
     unfreeze_layers: 
       - exit_modules
     new_layers:

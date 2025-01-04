@@ -570,9 +570,12 @@ class DistributedTrainer:
         before_optim_step_sanity_checks(
             self.config, self.parallel_context, self.unwrapped_model, self.grad_accumulator, self.optimizer
         )
+<<<<<<< HEAD
         
         # if self.model.config.freeze:
         #     pass
+=======
+>>>>>>> 9e90cd9 (fix the freeze problem)
 
         # Apply gradient
         self.optimizer.step()
@@ -724,13 +727,6 @@ class DistributedTrainer:
         model = self._init_model_instance()
         model = self._load_model_checkpoint(model)
 
-        if self.model_config.freeze:
-            for name, param in model.named_parameters():
-                if any(uf in name for uf in self.model_config.unfreeze_layers):
-                    log_rank(f'Unfreezing: {name}', logger=logger, level=logging.INFO, rank=0)
-                    continue
-                param.requires_grad = False
-
         return model
 
     def _init_model_instance(self) -> NanotronModel:
@@ -819,6 +815,12 @@ class DistributedTrainer:
             target_pp_ranks=target_pp_ranks,
             model_builder=model_builder,
         )
+        if self.model_config.freeze:
+            for name, param in model.named_parameters():
+                if any(uf in name for uf in self.model_config.unfreeze_layers):
+                    log_rank(f'Unfreezing: {name}', logger=logger, level=logging.INFO, rank=0)
+                    continue
+                param.requires_grad = False
 
         # Initialize rotary embeddings
         for module in model.modules():
