@@ -570,12 +570,6 @@ class DistributedTrainer:
         before_optim_step_sanity_checks(
             self.config, self.parallel_context, self.unwrapped_model, self.grad_accumulator, self.optimizer
         )
-<<<<<<< HEAD
-        
-        # if self.model.config.freeze:
-        #     pass
-=======
->>>>>>> 9e90cd9 (fix the freeze problem)
 
         # Apply gradient
         self.optimizer.step()
