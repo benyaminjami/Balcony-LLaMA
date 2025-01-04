@@ -571,8 +571,8 @@ class DistributedTrainer:
             self.config, self.parallel_context, self.unwrapped_model, self.grad_accumulator, self.optimizer
         )
         
-        if self.model.config.freeze:
-            pass
+        # if self.model.config.freeze:
+        #     pass
 
         # Apply gradient
         self.optimizer.step()
