@@ -1053,7 +1053,7 @@ class Loss(nn.Module):
                 group=self.tp_pg,
                 dtype=torch.float
             )
-            loss = (loss.view_as(label_mask) * label_mask).sum(dtype=torch.float) / label_mask.size(0)
+            loss = (loss.view_as(label_mask) * label_mask).sum(dtype=torch.float) / label_mask.sum()
         else:
             loss = sharded_cross_entropy(
                 sharded_logits, label_ids.transpose(0, 1).contiguous(), group=self.tp_pg, dtype=torch.float

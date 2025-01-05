@@ -2,7 +2,7 @@ checkpoints:
   checkpoint_interval: 5000
   checkpoints_path: /work/benyamin/smollm/checkpoints/Smollm_1B_Sorted_Balcony
   checkpoints_path_is_shared_file_system: false
-  resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B/
+  resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B
   save_final_state: false
   save_initial_state: false
   load_lr_scheduler: False
@@ -67,7 +67,7 @@ model:
       - exit_modules
     new_layers:
       - exit_modules
-    kldiv_loss: false
+    kldiv_loss: true
 optimizer:
   accumulate_grad_in_fp32: true
   clip_grad: 1.0
