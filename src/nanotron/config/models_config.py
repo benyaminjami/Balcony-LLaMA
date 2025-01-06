@@ -52,6 +52,7 @@ class LlamaConfig:
         False  # The default value has been True, but for loading Llama3 checkpoints you have to set it to False
     )
     tie_word_embeddings: bool = False
+    tie_exit_lm_head: bool = None
     use_cache: bool = True
     vocab_size: int = 32000
     exit_layer_indices: Optional[list] = None
@@ -70,6 +71,9 @@ class LlamaConfig:
         # for backward compatibility
         if self.num_key_value_heads is None:
             self.num_key_value_heads = self.num_attention_heads
+        
+        if self.tie_exit_lm_head is None:
+            self.tie_exit_lm_head = self.tie_word_embeddings
 
     @property
     def is_using_mup(self) -> bool:

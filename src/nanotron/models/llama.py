@@ -909,7 +909,7 @@ class LlamaModel(nn.Module):
                         },
                         module_input_keys={"x"},
                         module_output_keys={"logits"},
-                    ) if not config.tie_word_embeddings else None
+                    ) if not config.tie_exit_lm_head else None
                 ] if module is not None  # Filter out None modules
             ]) for i in range(len(config.exit_layer_indices))
         ])
@@ -950,11 +950,12 @@ class LlamaModel(nn.Module):
             #Sorted exits
             if hasattr(self.config, "exit_layer_indices") and encoder_block_idx+1 in self.config.exit_layer_indices:
                 exit_module_list = self.exit_modules[self.exit_layer_to_index[encoder_block_idx+1]]
-                if not self.config.tie_word_embeddings:
+                if self.config.tie_exit_lm_head:
+                    lm_head = self.lm_head
+                else:
                     lm_head = exit_module_list[-1]
                     exit_module_list = exit_module_list[:-1]
-                else:
-                    lm_head = self.lm_head
+
                 # Process the exit module list dynamically
                 exit_hidden_states = {
                     "hidden_states": hidden_encoder_states["hidden_states"],
