@@ -62,17 +62,17 @@ model:
       - 4
       - 8
       - 12
-    freeze: true
-    unfreeze_layers: 
-      - exit_modules
-    new_layers:
-      - exit_modules
-    kldiv_loss: true
+    freeze: false
+    # unfreeze_layers: 
+    #   - exit_modules
+    # new_layers:
+    #   - exit_modules
+    kldiv_loss: false
 optimizer:
   accumulate_grad_in_fp32: true
   clip_grad: 1.0
   learning_rate_scheduler:
-    learning_rate: 0.00005
+    learning_rate: 0.0005
     lr_decay_starting_step: 450000
     lr_decay_steps: 50000
     lr_decay_style: linear
