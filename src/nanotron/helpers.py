@@ -200,7 +200,8 @@ def get_custom_weight_decay_for_named_parameters(
             param.get_tied_info().get_full_name_from_module_id_to_prefix(module_id_to_prefix=module_id_to_prefix)
         else:
             pass
-
+        if not param.requires_grad:
+            continue
         if any(name.endswith(substring) for substring in exclude_named_params):
             named_param_groups_with_custom_weight_decay.append({"named_params": [(name, param)], "weight_decay": 0.0})
         else:
@@ -253,6 +254,8 @@ def get_custom_lr_for_named_parameters(
         name,
         param,
     ) in named_parameters:
+        if not param.requires_grad:
+            continue
         learning_rate = learning_rate_mapper.get_lr(name, param)
         assert isinstance(learning_rate, float), f"Expected a float, got {learning_rate} for parameter {name}"
         named_param_groups_with_custom_lr.append({"named_params": [(name, param)], "lr": learning_rate})
@@ -416,6 +419,10 @@ def init_optimizer_and_grad_accumulator(
     # Register DDP hook to make fp32 grad accumulation work
     if isinstance(model, DistributedDataParallel) and grad_accumulator is not None:
         assert isinstance(grad_accumulator, FP32GradientAccumulator)
+        named_params = []
+        for name, param in unwrapped_model.named_parameters():
+            if param.requires_grad:
+                named_params.append((name, param))
         model.register_comm_hook(
             state=FP32GradBucketManager(
                 dp_pg=parallel_context.dp_pg,
@@ -426,7 +433,7 @@ def init_optimizer_and_grad_accumulator(
                     )
                     if param.is_tied
                     else name
-                    for name, param in unwrapped_model.named_parameters()
+                    for name, param in named_params
                 },
             ),
             hook=get_fp32_accum_hook(

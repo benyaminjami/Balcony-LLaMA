@@ -1,6 +1,6 @@
 checkpoints:
   checkpoint_interval: 5000
-  checkpoints_path: /work/benyamin/smollm/checkpoints/Smollm_1B_Sorted_Balcony
+  checkpoints_path: /work/benyamin/smollm/checkpoints/Smollm_1B_Sorted_SFT_Untie
   checkpoints_path_is_shared_file_system: false
   resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B
   save_final_state: false
@@ -23,7 +23,7 @@ general:
   consumed_train_samples: null
   ignore_sanity_checks: true
   project: smollm2
-  run: Smollm_1B_Balcony
+  run: Smollm_1B_Sorted_SFT_Untie
   seed: 42
   step: null
 logging:
@@ -57,17 +57,18 @@ model:
     tie_word_embeddings: true
     use_cache: true
     vocab_size: 49152
-    exit_decoder_layer: true
+    exit_decoder_layer: false
     exit_layer_indices:
       - 4
       - 8
       - 12
-    freeze: true
+    freeze: false
     unfreeze_layers: 
       - exit_modules
     new_layers:
       - exit_modules
-    kldiv_loss: true
+    kldiv_loss: false
+    tie_exit_lm_head: false
 optimizer:
   accumulate_grad_in_fp32: true
   clip_grad: 1.0

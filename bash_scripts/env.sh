@@ -1,7 +1,12 @@
-source ~/miniconda3/etc/profile.d/conda.sh
-pip install conda-pack
-mkdir ~/miniconda3/envs/smol
-tar -xzf /work/benyamin/smollm/conda_env.tar.gz -C ~/miniconda3/envs/smol/
-source ~/miniconda3/envs/smol/bin/activate
-conda-unpack
-pip install /work/benyamin/smollm/nanotron/
+set -e
+cd /work/benyamin/smollm/nanotron
+pip install --upgrade pip
+pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu121
+pip install -e .
+
+# Install dependencies if you want to use the example scripts
+pip install datasets transformers
+pip install triton "flash-attn>=2.5.0" --no-build-isolation
+pip install "datatrove[io,processing]@git+https://github.com/huggingface/datatrove"
+pip install numba
+pip install "numpy<=2"

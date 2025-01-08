@@ -13,5 +13,5 @@ fi
 rsync -avz --info=name --partial --append-verify \
     --exclude="logs/" \
     --exclude="checkpoints/" -e "ssh -i /work/benyamin/smollm/ssh/id_ed25519" \
-    /work/benyamin/smollm/ benyamin@$NODE:/work/benyamin/smollm/
+    /work/benyamin/datasets/ benyamin@$NODE:/work/benyamin/datasets/
 # /Smollm_1B/history/" \

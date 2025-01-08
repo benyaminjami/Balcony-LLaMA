@@ -720,12 +720,6 @@ class DistributedTrainer:
 
         model = self._init_model_instance()
         model = self._load_model_checkpoint(model)
-        
-        if self.model_config.freeze:
-            for name, param in model.named_parameters():
-                if any([uf in name for uf in self.model_config.unfreeze_layers]):
-                    continue
-                param.requires_grad = False
 
         return model
 
@@ -825,16 +819,36 @@ class DistributedTrainer:
         # Mark some parameters as tied
         self._mark_tied_parameters(model=model, parallel_context=parallel_context, parallel_config=parallel_config)
 
+        if self.model_config.freeze:
+            for name, param in model.named_parameters():
+                if any(uf in name for uf in self.model_config.unfreeze_layers):
+                    log_rank(f'Unfreezing: {name}', logger=logger, level=logging.INFO, rank=0)
+                    continue
+                param.requires_grad = False
+                log_rank(f'Freezing: {name}', logger=logger, level=logging.INFO, rank=0)
+
         # count number of parameters
         num_params = sum(p.numel() for p in model.parameters())
         size_params = sum(p.numel() * p.element_size() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = torch.tensor(num_params, device="cuda")
         total_size = torch.tensor(size_params, device="cuda")
+        total_trainable_params = torch.tensor(trainable_params, device="cuda")
         dist.all_reduce(total_params, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)  # TP
         dist.all_reduce(total_params, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)  # PP
         dist.all_reduce(total_size, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_size, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_trainable_params, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_trainable_params, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)
 
+        # Log the number of parameters
+        log_rank(
+            f"Total number of trainable parameters: {human_format(total_trainable_params.item())}",
+            logger=logger,
+            level=logging.INFO,
+            group=parallel_context.world_pg,
+            rank=0,
+        )
         # TODO @nouamanetazi: better memory logs
         log_rank(
             f"Total number of parameters: {human_format(total_params.item())} ({total_size.item() / 1024**2:.2f}MiB)",

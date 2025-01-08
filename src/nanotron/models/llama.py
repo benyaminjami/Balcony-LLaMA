@@ -33,7 +33,7 @@ from nanotron.parallel import ParallelContext
 from nanotron.parallel.parameters import NanotronParameter
 from nanotron.parallel.pipeline_parallel.block import PipelineBlock, TensorPointer
 from nanotron.parallel.pipeline_parallel.p2p import P2P
-from nanotron.parallel.tensor_parallel.functional import sharded_cross_entropy
+from nanotron.parallel.tensor_parallel.functional import sharded_cross_entropy, shared_kl_divergence
 from nanotron.parallel.tensor_parallel.nn import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -849,7 +849,7 @@ class LlamaModel(nn.Module):
             p2p=self.p2p,
             module_builder=TritonRMSNorm,
             module_kwargs={"hidden_size": config.hidden_size, "eps": config.rms_norm_eps},
-            module_input_keys={"input"},
+            module_input_keys={"hidden_states"},
             module_output_keys={"hidden_states"},
         )  # TODO
 
@@ -892,7 +892,7 @@ class LlamaModel(nn.Module):
                         p2p=self.p2p,
                         module_builder=TritonRMSNorm,
                         module_kwargs={"hidden_size": config.hidden_size, "eps": config.rms_norm_eps},
-                        module_input_keys={"input"},
+                        module_input_keys={"hidden_states"},
                         module_output_keys={"hidden_states"}
                     ),
                     PipelineBlock(
@@ -909,7 +909,7 @@ class LlamaModel(nn.Module):
                         },
                         module_input_keys={"x"},
                         module_output_keys={"logits"},
-                    ) if not config.tie_word_embeddings else None
+                    ) if not config.tie_exit_lm_head else None
                 ] if module is not None  # Filter out None modules
             ]) for i in range(len(config.exit_layer_indices))
         ])
@@ -946,16 +946,19 @@ class LlamaModel(nn.Module):
         total_exit_logits = {}
         for encoder_block_idx, encoder_block in enumerate(self.decoder):
             hidden_encoder_states = encoder_block(**hidden_encoder_states)
-            
+
             #Sorted exits
-            if encoder_block_idx+1 in self.config.exit_layer_indices:
+            if hasattr(self.config, "exit_layer_indices") and encoder_block_idx+1 in self.config.exit_layer_indices:
                 exit_module_list = self.exit_modules[self.exit_layer_to_index[encoder_block_idx+1]]
+                if self.config.tie_exit_lm_head:
+                    lm_head = self.lm_head
+                else:
+                    lm_head = exit_module_list[-1]
+                    exit_module_list = exit_module_list[:-1]
 
                 # Process the exit module list dynamically
                 exit_hidden_states = {
                     "hidden_states": hidden_encoder_states["hidden_states"],
-                    "input": hidden_encoder_states["hidden_states"],
-                    "x": hidden_encoder_states["hidden_states"],
                     "sequence_mask": hidden_encoder_states["sequence_mask"]
                 }
 
@@ -973,15 +976,12 @@ class LlamaModel(nn.Module):
                         exit_hidden_states.update({key: outputs[key] for key in output_keys if key in outputs})
 
                 # Compute logits
-                if exit_hidden_states.get("hidden_states") is not None and self.config.tie_word_embeddings:
-                    exit_logits = self.lm_head(x=exit_hidden_states["hidden_states"])["logits"]
-                else:
-                    exit_logits = exit_hidden_states["logits"]
-                
+                exit_logits = lm_head(x=exit_hidden_states["hidden_states"])["logits"]
+
                 fp32_sharded_exit_logits = self.cast_to_fp32(x=exit_logits)["output"]
                 total_exit_logits[encoder_block_idx] = fp32_sharded_exit_logits
 
-        hidden_states = self.final_layer_norm(input=hidden_encoder_states["hidden_states"])["hidden_states"]
+        hidden_states = self.final_layer_norm(hidden_states=hidden_encoder_states["hidden_states"])["hidden_states"]
 
         sharded_logits = self.lm_head(x=hidden_states)["logits"]
 
@@ -1029,30 +1029,38 @@ class LlamaModel(nn.Module):
 
 
 @torch.jit.script
-def masked_mean(loss, label_mask, dtype):
-    # type: (Tensor, Tensor, torch.dtype) -> Tensor
+def masked_mean(loss: torch.Tensor, label_mask: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
     return (loss * label_mask).sum(dtype=dtype) / label_mask.sum()
 
 
 class Loss(nn.Module):
-    def __init__(self, tp_pg: dist.ProcessGroup):
+    def __init__(self, tp_pg: dist.ProcessGroup, kldiv_loss: bool = False):
         super().__init__()
         self.tp_pg = tp_pg
-
     def forward(
         self,
         sharded_logits: torch.Tensor,  # [seq_length, batch_size, logits]
-        label_ids: torch.Tensor,  # [batch_size, seq_length]
         label_mask: torch.Tensor,  # [batch_size, seq_length]
+        sharded_logits_teacher: torch.Tensor = None,
+        label_ids: torch.Tensor = None,  # [batch_size, seq_length]
+        kldiv_loss: bool = True,
     ) -> Dict[str, torch.Tensor]:
         # Megatron by defaults cast everything in fp32. `--f16-lm-cross-entropy` is an option you can use to keep current precision.
         # https://github.com/NVIDIA/Megatron-LM/blob/f267e6186eae1d6e2055b412b00e2e545a8e896a/megatron/model/gpt_model.py#L38
-
-        loss = sharded_cross_entropy(
-            sharded_logits, label_ids.transpose(0, 1).contiguous(), group=self.tp_pg, dtype=torch.float
-        ).transpose(0, 1)
-        # TODO @thomasw21: It's unclear what kind of normalization we want to do.
-        loss = masked_mean(loss, label_mask, dtype=torch.float)
+        if kldiv_loss:
+            loss = shared_kl_divergence(
+                sharded_logits,
+                sharded_logits_teacher,
+                group=self.tp_pg,
+                dtype=torch.float
+            )
+            loss = (loss.view_as(label_mask) * label_mask).sum(dtype=torch.float) / label_mask.sum()
+        else:
+            loss = sharded_cross_entropy(
+                sharded_logits, label_ids.transpose(0, 1).contiguous(), group=self.tp_pg, dtype=torch.float
+            ).transpose(0, 1)
+            # TODO @thomasw21: It's unclear what kind of normalization we want to do.
+            loss = masked_mean(loss, label_mask, dtype=torch.float)
         # I think indexing causes a sync we don't actually want
         # loss = loss[label_mask].sum()
         return {"loss": loss}
@@ -1068,19 +1076,20 @@ class LlamaForTraining(NanotronModel):
     ):
         super().__init__()
         self.model = LlamaModel(config=config, parallel_context=parallel_context, parallel_config=parallel_config)
-        
+
         self.loss = PipelineBlock(
             p2p=self.model.p2p,
             module_builder=Loss,
-            module_kwargs={"tp_pg": parallel_context.tp_pg},
+            module_kwargs={"tp_pg": parallel_context.tp_pg, "kldiv_loss": config.kldiv_loss},
             module_input_keys={
                 "sharded_logits",
                 "label_ids",
                 "label_mask",
+                "sharded_logits_teacher",
+                "kldiv_loss",
             },
             module_output_keys={"loss"},
         )
-        self.kldiv_loss_func = nn.KLDivLoss()
         self.kldiv_loss = config.kldiv_loss
         self.parallel_context = parallel_context
         self.config = config
@@ -1104,29 +1113,33 @@ class LlamaForTraining(NanotronModel):
                 sharded_logits=sharded_logits[exit_layer],
                 label_ids=label_ids,
                 label_mask=label_mask,
+                sharded_logits_teacher=None,
+                kldiv_loss=False
             )["loss"]
             loss_list.append(loss)
             log_loss[f'exit_loss_{exit_layer}'] = loss
         output = {"loss": sum(loss_list)/len(loss_list)}
         output.update(log_loss)
-        
+
         if self.kldiv_loss:
             loss_list = []
             log_loss = {}
-            last_layer = list(sharded_logits.keys()).max()
+            last_layer = max(list(sharded_logits.keys()))
             last_shared_logits = sharded_logits[last_layer]
             for exit_layer in list(sharded_logits.keys()):
                 if exit_layer == last_layer:
                     continue
-                loss = self.kldiv_loss_func(
-                    input=torch.functional.log_softmax(sharded_logits[exit_layer]),
-                    target=torch.functional.softmax(last_shared_logits)    
-                )
+                loss = self.loss(
+                    sharded_logits=sharded_logits[exit_layer],
+                    label_ids=None,
+                    label_mask=label_mask,
+                    sharded_logits_teacher=last_shared_logits,
+                    kldiv_loss=True
+                )['loss']
                 loss_list.append(loss)
                 log_loss[f'kd_exit_loss_{exit_layer}'] = loss
-            output = {"loss": sum(loss_list)/len(loss_list)}
+            output["loss"] = sum(loss_list)/len(loss_list)
             output.update(log_loss)
-        
         return output
 
     @torch.no_grad()
