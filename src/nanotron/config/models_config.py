@@ -61,6 +61,7 @@ class LlamaConfig:
     freeze: bool = False
     unfreeze_layers: Optional[list] = None
     new_layers: Optional[list] = None
+    use_token_metadata: bool = False
 
     def __post_init__(self):
         # NOTE: user don't set self._init_method, ModelArgs will set it

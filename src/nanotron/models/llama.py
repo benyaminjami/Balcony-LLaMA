@@ -922,6 +922,13 @@ class LlamaModel(nn.Module):
             module_output_keys={"output"},
         )
 
+        # Initialize metadata token indices
+        self.token_metadata = None
+
+    def set_token_metadata(self, token_metadata):
+        # Add special tokens indices list
+        self.token_metadata = token_metadata
+
     def forward(
         self,
         input_ids: Union[torch.Tensor, TensorPointer],  # [batch_size, seq_length]
@@ -1108,7 +1115,7 @@ class LlamaForTraining(NanotronModel):
         )
         loss_list = []
         log_loss = {}
-        for exit_layer in sharded_logits:
+        for exit_layer_idx, exit_layer in enumerate(sharded_logits):
             loss = self.loss(
                 sharded_logits=sharded_logits[exit_layer],
                 label_ids=label_ids,
@@ -1116,9 +1123,20 @@ class LlamaForTraining(NanotronModel):
                 sharded_logits_teacher=None,
                 kldiv_loss=False
             )["loss"]
-            loss_list.append(loss)
+            if self.model.config.use_token_metadata:
+                # Assert all first tokens in batch are the same
+                first_tokens = input_ids[:, 0]  # Get first token of each sequence
+                assert torch.all(first_tokens == first_tokens[0]), "All sequences in batch must start with the same token"
+                if self.model.token_metadata.index(first_tokens[0].item()) == exit_layer_idx:
+                    loss_list.append(loss)
+                    log_rank(f"Loss for exit module {exit_layer_idx} is {loss}", logger=logger, level=logging.INFO, rank=0)
+                else:
+                    loss_list.append(loss * 0) 
+            else:
+                loss_list.append(loss)
             log_loss[f'exit_loss_{exit_layer}'] = loss
-        output = {"loss": sum(loss_list)/len(loss_list)}
+        # output = {"loss": sum(loss_list)/len(loss_list)}
+        output = {"loss": sum(loss_list)} if self.model.config.use_token_metadata else {"loss": sum(loss_list)/len(loss_list)}
         output.update(log_loss)
 
         if self.kldiv_loss:
