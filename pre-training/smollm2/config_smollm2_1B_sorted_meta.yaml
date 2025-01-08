@@ -1,6 +1,6 @@
 checkpoints:
   checkpoint_interval: 5000
-  checkpoints_path: /work/parsa/smollm/checkpoints/Smollm_1B_Sorted
+  checkpoints_path: /work/parsa/smollm/checkpoints/Smollm_1B_PT_Sorted_Meta
   checkpoints_path_is_shared_file_system: false
   # resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B_Sorted
   save_final_state: false
@@ -12,8 +12,8 @@ data_stages:
     dataset:
       dataset_folder:
       # - /work/benyamin/datasets/smollm-python
-      - /work/benyamin/smollm/datasets/smollm-cosmo
-      - /work/benyamin/smollm/datasets/smollm-fineweb
+      - /work/benyamin/datasets/smollm-cosmo
+      - /work/benyamin/datasets/smollm-fineweb
     num_loading_workers: 0
     seed: 8
   name: stable phase
@@ -23,7 +23,7 @@ general:
   consumed_train_samples: null
   ignore_sanity_checks: true
   project: smollm2
-  run: Smollm_1B_sorted
+  run: Smollm_1B_PT_Meta
   seed: 42
   step: null
 logging:
@@ -56,7 +56,7 @@ model:
     rope_theta: 10000.0
     tie_word_embeddings: true
     use_cache: true
-    vocab_size: 49156
+    vocab_size: 49168
     use_token_metadata: true
     exit_layer_indices:
       - 4
@@ -82,7 +82,7 @@ optimizer:
   weight_decay: 0.01
   zero_stage: 0
 parallelism:
-  dp: 2
+  dp: 16
   expert_parallel_size: 1
   pp: 1
   pp_engine: 1f1b

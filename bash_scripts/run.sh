@@ -1,5 +1,5 @@
 #!/bin/bash
-
+BRANCH="sorted"
 # Load configuration variables
 CONFIG_FILE_PATH=$1
 if [ -f "$CONFIG_FILE_PATH" ]; then
@@ -61,7 +61,7 @@ start_training() {
         TRAIN_COMMAND="
             cd /work/benyamin/smollm/nanotron; \
             export GIT_SSH_COMMAND=\"ssh -i /work/benyamin/smollm/ssh/id_ed25519\"; \
-            git checkout sorted; \
+            git checkout $BRANCH; \
             git pull; \
             $CONDA_COMMAND \
             export WANDB_API_KEY="44735889af01972b7a789b2a6b9d6f95ca6b9615"; \

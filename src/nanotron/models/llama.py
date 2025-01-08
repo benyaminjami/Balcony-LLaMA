@@ -1129,12 +1129,13 @@ class LlamaForTraining(NanotronModel):
                 assert torch.all(first_tokens == first_tokens[0]), "All sequences in batch must start with the same token"
                 if self.model.token_metadata.index(first_tokens[0].item()) == exit_layer_idx:
                     loss_list.append(loss)
-                    log_rank(f"Loss for exit module {exit_layer_idx} is {loss}", logger=logger, level=logging.INFO, rank=0)
+                    log_loss[f'exit_loss_{exit_layer}'] = loss
+                    # log_rank(f"Loss for exit module {exit_layer_idx} is {loss}", logger=logger, level=logging.INFO, rank=0)
                 else:
                     loss_list.append(loss * 0) 
             else:
                 loss_list.append(loss)
-            log_loss[f'exit_loss_{exit_layer}'] = loss
+                log_loss[f'exit_loss_{exit_layer}'] = loss
         # output = {"loss": sum(loss_list)/len(loss_list)}
         output = {"loss": sum(loss_list)} if self.model.config.use_token_metadata else {"loss": sum(loss_list)/len(loss_list)}
         output.update(log_loss)

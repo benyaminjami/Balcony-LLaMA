@@ -47,11 +47,6 @@ class PipelineEngine(ABC):
         if not isinstance(output, dict):
             output = {"loss": output}
 
-        # We normalize our loss
-        if not isinstance(output["loss"], TensorPointer):
-            for key in output:
-                output[key] /= self.nb_microbatches
-
         # Add output as activations that require backward pass
         if not isinstance(output["loss"], TensorPointer):
             assert output["loss"].requires_grad

@@ -544,14 +544,18 @@ class DistributedTrainer:
         if isinstance(outputs[0]["loss"], torch.Tensor):
             # This is an average on only one data rank.
             def dp_reduce_loss(outputs, key):
-                loss_avg = torch.stack(
-                    [output[key] for output in outputs]
-                ).sum()  # already divided by n_micro_batches_per_batch
+                losses = [output[key] for output in outputs if key in output]
+                loss_avg = torch.stack(losses).sum()  # already divided by n_micro_batches_per_batch
+                counts = torch.tensor(len(losses), device=loss_avg.device)
+                loss_count = torch.stack([loss_avg, counts])
                 # sync loss across DP
-                handle = dist.all_reduce(loss_avg, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.AVG)
+                handle = dist.all_reduce(loss_count, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.SUM)
+                loss_avg = loss_count[0] / loss_count[1]
                 return loss_avg, handle
+
+            # print(outputs)
             reduced_outputs = {}
-            for key in outputs[0]:
+            for key in {key for d in outputs for key in d.keys()}:
                 avg, handle = dp_reduce_loss(outputs, key)
                 reduced_outputs[key] = avg
             loss_avg, handle = dp_reduce_loss(outputs, "loss")
