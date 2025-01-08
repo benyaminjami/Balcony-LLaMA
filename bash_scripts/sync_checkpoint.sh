@@ -22,6 +22,8 @@ fi
 echo "Latest checkpoint is: $LATEST_CHECKPOINT"
 LATEST_CHECKPOINT_PATH="${CHECKPOINT_BASE_PATH}/${LATEST_CHECKPOINT}"
 
+ssh -i /work/benyamin/smollm/ssh/id_ed25519 benyamin@$DEST_NODE "mkdir -p $LATEST_CHECKPOINT_PATH; echo $LATEST_CHECKPOINT > $CHECKPOINT_BASE_PATH/latest.txt"
+
 # Perform the rsync operation and exclude the random folder
 rsync -avz --info=name --partial --append-verify \
     -e "ssh -i /work/benyamin/smollm/ssh/id_ed25519" \

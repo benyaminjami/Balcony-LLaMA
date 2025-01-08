@@ -2,11 +2,11 @@ checkpoints:
   checkpoint_interval: 5000
   checkpoints_path: /work/benyamin/smollm/checkpoints/Smollm_1B_PT_Sorted_Balcony
   checkpoints_path_is_shared_file_system: false
-  # resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B
+  resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B_PT_Sorted_Balcony
   save_final_state: false
   save_initial_state: false
-  load_lr_scheduler: False
-  load_optimizer: False
+  load_lr_scheduler: true
+  load_optimizer: true
 data_stages:
 - data:
     dataset:

@@ -1,5 +1,5 @@
 # Define the node numbers and the master node
-NODES=(10 9)  # List of node numbers
+NODES=(9 8)  # List of node numbers
 MASTER_NODE=10  # Specify which node number is the master
 SYNC_MASTER=false  # Flag to determine whether to sync and check on the master node
 RUN_NAME="Smollm_1B_PT_Sorted_Balcony"  # Specify a unique name for this run
