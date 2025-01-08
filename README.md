@@ -55,7 +55,7 @@ pip install triton "flash-attn>=2.5.0" --no-build-isolation
 ### Training a tiny Llama model
 The following command will train a tiny Llama model on a single node with 8 GPUs. The model will be saved in the `checkpoints` directory as specified in the config file.
 ```bash
-CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=8 --nnodes=2 --master_addr="lux-3-node-03" --node_rank=0 run_train.py --config-file examples/config_tiny_llama.yaml
+CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun --nproc_per_node=8 run_train.py --config-file examples/config_tiny_llama.yaml
 ```
 
 ### Run generation from your checkpoint

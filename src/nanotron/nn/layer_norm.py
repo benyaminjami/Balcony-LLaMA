@@ -37,12 +37,12 @@ class TritonRMSNorm(nn.Module):
         nn.init.ones_(self.weight)
 
     def forward(
-        self, hidden_states, residual=None, dropout_p=0.0, prenorm=False, residual_in_fp32=False, return_dropout_mask=False
+        self, input, residual=None, dropout_p=0.0, prenorm=False, residual_in_fp32=False, return_dropout_mask=False
     ):
         from flash_attn.ops.triton.layer_norm import layer_norm_fn
 
         return layer_norm_fn(
-            hidden_states,
+            input,
             self.weight,
             None,
             residual=residual,
