@@ -264,6 +264,8 @@ def load_weights(
                     param_or_buffer[:] = fi.get_tensor("data")
 
             elif not path.parent.exists():
+                if any([new_layer in str(path) for new_layer in model.config.new_layers]):
+                    continue
                 raise ValueError(
                     f"Checkpoint is empty or checkpoint structure is not matching the model architecture."
                     f"Couldn't find folder {path.parent} in checkpoint at {root_folder}"

@@ -543,11 +543,18 @@ class DistributedTrainer:
         # Compute DP average loss and overlap with optimizer step
         if isinstance(outputs[0]["loss"], torch.Tensor):
             # This is an average on only one data rank.
-            loss_avg = torch.stack(
-                [output["loss"] for output in outputs]
-            ).sum()  # already divided by n_micro_batches_per_batch
-            # sync loss across DP
-            handle = dist.all_reduce(loss_avg, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.AVG)
+            def dp_reduce_loss(outputs, key):
+                loss_avg = torch.stack(
+                    [output[key] for output in outputs]
+                ).sum()  # already divided by n_micro_batches_per_batch
+                # sync loss across DP
+                handle = dist.all_reduce(loss_avg, group=self.parallel_context.dp_pg, async_op=True, op=dist.ReduceOp.AVG)
+                return loss_avg, handle
+            reduced_outputs = {}
+            for key in outputs[0]:
+                avg, handle = dp_reduce_loss(outputs, key)
+                reduced_outputs[key] = avg
+            loss_avg, handle = dp_reduce_loss(outputs, "loss")
         else:
             loss_avg = None
             handle = None
@@ -578,7 +585,7 @@ class DistributedTrainer:
 
         self.post_train_step()
 
-        return outputs, loss_avg
+        return reduced_outputs, loss_avg
 
     def validation_step(self, dataloader: Iterator[Dict[str, Union[torch.Tensor, TensorPointer]]]) -> Iterable[Dict]:
         outputs = self.pipeline_engine.validate_batch_iter(
@@ -629,6 +636,13 @@ class DistributedTrainer:
                 LogItem("model_tflops_per_gpu", model_tflops, "human_format"),  # , ".2f"),
                 LogItem("hardware_tflops_per_gpu", hardware_tflops, "human_format"),  # , ".2f"),
             ]
+            
+            for key in outputs:
+                if key == "loss":
+                    continue
+                log_entries.append(
+                    LogItem(key, outputs[key].item(), "human_format")
+                )
 
             if self.config.optimizer.clip_grad is not None:
                 log_entries.append(LogItem("grad_norm", self.grad_norm_unclipped.item(), "human_format"))  # , ".3f"))
@@ -706,6 +720,7 @@ class DistributedTrainer:
 
         model = self._init_model_instance()
         model = self._load_model_checkpoint(model)
+
         return model
 
     def _init_model_instance(self) -> NanotronModel:
@@ -804,16 +819,36 @@ class DistributedTrainer:
         # Mark some parameters as tied
         self._mark_tied_parameters(model=model, parallel_context=parallel_context, parallel_config=parallel_config)
 
+        if self.model_config.freeze:
+            for name, param in model.named_parameters():
+                if any(uf in name for uf in self.model_config.unfreeze_layers):
+                    log_rank(f'Unfreezing: {name}', logger=logger, level=logging.INFO, rank=0)
+                    continue
+                param.requires_grad = False
+                log_rank(f'Freezing: {name}', logger=logger, level=logging.INFO, rank=0)
+
         # count number of parameters
         num_params = sum(p.numel() for p in model.parameters())
         size_params = sum(p.numel() * p.element_size() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total_params = torch.tensor(num_params, device="cuda")
         total_size = torch.tensor(size_params, device="cuda")
+        total_trainable_params = torch.tensor(trainable_params, device="cuda")
         dist.all_reduce(total_params, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)  # TP
         dist.all_reduce(total_params, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)  # PP
         dist.all_reduce(total_size, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)
         dist.all_reduce(total_size, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_trainable_params, group=parallel_context.tp_pg, async_op=False, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_trainable_params, group=parallel_context.pp_pg, async_op=False, op=dist.ReduceOp.SUM)
 
+        # Log the number of parameters
+        log_rank(
+            f"Total number of trainable parameters: {human_format(total_trainable_params.item())}",
+            logger=logger,
+            level=logging.INFO,
+            group=parallel_context.world_pg,
+            rank=0,
+        )
         # TODO @nouamanetazi: better memory logs
         log_rank(
             f"Total number of parameters: {human_format(total_params.item())} ({total_size.item() / 1024**2:.2f}MiB)",

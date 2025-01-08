@@ -49,7 +49,8 @@ class PipelineEngine(ABC):
 
         # We normalize our loss
         if not isinstance(output["loss"], TensorPointer):
-            output["loss"] = output["loss"] / self.nb_microbatches
+            for key in output:
+                output[key] /= self.nb_microbatches
 
         # Add output as activations that require backward pass
         if not isinstance(output["loss"], TensorPointer):
