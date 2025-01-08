@@ -14,8 +14,9 @@ from convert_weights import get_config_mapping, get_weight_mapping, load_nanotro
 from nanotron.config import LlamaConfig as NanotronLlamaConfig
 from nanotron.models import init_on_device_and_dtype
 from nanotron.models.llama import LlamaForTraining
-from transformers import AutoTokenizer, LlamaForCausalLM
-from transformers import LlamaConfig as HFLlamaConfig
+from transformers import AutoTokenizer
+from nanotron.transformers_extra.models.llama.modeling_nestedllama import NestedLlamaForCausalLM
+from nanotron.transformers_extra.models.llama.configuration_nestedllama import NestedLlamaConfig as HFLlamaConfig
 
 TEST_PROMPT = "What is the meaning of the word chutzpah?\nThe word chutzpah means"
 
@@ -38,7 +39,7 @@ def _handle_attention_block(
             w_new.append(head_w)
         return torch.cat(w_new)
 
-    assert part in ["q", "k", "v"], "part must be one of [q, k, v]"
+    assert part in ["q", "k", "v"], f"{part} must be one of [q, k, v]"
 
     index_end_q = n_q_heads * d_qk
     index_end_k = index_end_q + n_kv_heads * d_qk
@@ -60,7 +61,7 @@ def _handle_gate_up_proj(gate_up_proj: torch.Tensor, gate: bool) -> torch.Tensor
         return gate_up_proj[weight_size:]
 
 
-def convert_nt_to_hf(nanotron_model: LlamaForTraining, hf_model: LlamaForCausalLM, model_config: NanotronLlamaConfig):
+def convert_nt_to_hf(nanotron_model: LlamaForTraining, hf_model: NestedLlamaForCausalLM, model_config: NanotronLlamaConfig):
     """Converts the weights from the nanotron_model to hf_model, making modifications
     in-place."""
 
@@ -74,7 +75,8 @@ def convert_nt_to_hf(nanotron_model: LlamaForTraining, hf_model: LlamaForCausalL
             param = nanotron_model_state_dict[nanotron_key]
 
             if "qkv_proj" in nanotron_key:
-                proj_name = module_name_hf.split(".")[4][0]
+                proj_name = module_name_hf.split(".")[-1][0]
+                # print(module_name_hf)
                 param = _handle_attention_block(
                     param,
                     proj_name,
@@ -113,7 +115,7 @@ def convert_checkpoint_and_save(checkpoint_path: Path, save_path: Path, tokenize
     # Init huggingface model.
     with init_on_device_and_dtype(torch.device("cuda"), torch.bfloat16):
         model_config_hf = get_hf_config(model_config)
-        hf_model = LlamaForCausalLM._from_config(model_config_hf)
+        hf_model = NestedLlamaForCausalLM._from_config(model_config_hf)
 
     # Copy weights, initialize tokenizer and save model.
     if tokenizer_name is not None:
@@ -132,7 +134,7 @@ def check_converted_model_generation(save_path: Path):
     input_ids = tokenizer(TEST_PROMPT, return_tensors="pt")["input_ids"].cuda()
     print("Inputs:", tokenizer.batch_decode(input_ids))
 
-    model = LlamaForCausalLM.from_pretrained(save_path).cuda().bfloat16()
+    model = NestedLlamaForCausalLM.from_pretrained(save_path).cuda().bfloat16()
     out = model.generate(input_ids, max_new_tokens=100)
     print("Generation (converted): ", tokenizer.batch_decode(out))
 

@@ -61,7 +61,8 @@ class LlamaConfig:
     freeze: bool = False
     unfreeze_layers: Optional[list] = None
     new_layers: Optional[list] = None
-
+    output_exit_layer_index: Optional[int] = None
+    
     def __post_init__(self):
         # NOTE: user don't set self._init_method, ModelArgs will set it
         # then we only pass LlamaConfig around
@@ -75,6 +76,9 @@ class LlamaConfig:
         if self.tie_exit_lm_head is None:
             self.tie_exit_lm_head = self.tie_word_embeddings
 
+        if self.exit_layer_indices is None:
+            self.exit_layer_indices = []
+        
     @property
     def is_using_mup(self) -> bool:
         return self._is_using_mup

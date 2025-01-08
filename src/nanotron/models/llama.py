@@ -870,7 +870,7 @@ class LlamaModel(nn.Module):
             module_input_keys={"x"},
             module_output_keys={"logits"},
         )
-
+        
         self.exit_layer_to_index = {config.exit_layer_indices[i]:i for i in range(len(config.exit_layer_indices))}
         # Create auxiliary exit modules
         self.exit_modules = nn.ModuleList([

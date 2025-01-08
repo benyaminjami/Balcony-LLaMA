@@ -22,19 +22,27 @@ def get_weight_mapping(config: NanotronLlamaConfig, nt_to_hf: bool = True) -> di
     for i in range(config.num_hidden_layers):
         hf_prefix = f"model.layers.{i}"
         nt_prefix = f"model.decoder.{i}.pp_block"
-        hf_to_nt_map[f"{hf_prefix}.self_attn.q_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.self_attn.k_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.self_attn.v_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.self_attn.o_proj.weight"] = f"{nt_prefix}.attn.o_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.mlp.gate_proj.weight"] = f"{nt_prefix}.mlp.gate_up_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.mlp.gate_proj.bias"] = f"{nt_prefix}.mlp.gate_up_proj.bias"
-        hf_to_nt_map[f"{hf_prefix}.mlp.up_proj.weight"] = f"{nt_prefix}.mlp.gate_up_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.mlp.up_proj.bias"] = f"{nt_prefix}.mlp.gate_up_proj.bias"
-        hf_to_nt_map[f"{hf_prefix}.mlp.down_proj.weight"] = f"{nt_prefix}.mlp.down_proj.weight"
-        hf_to_nt_map[f"{hf_prefix}.mlp.down_proj.bias"] = f"{nt_prefix}.mlp.down_proj.bias"
-        hf_to_nt_map[f"{hf_prefix}.input_layernorm.weight"] = f"{nt_prefix}.input_layernorm.weight"
-        hf_to_nt_map[f"{hf_prefix}.post_attention_layernorm.weight"] = f"{nt_prefix}.post_attention_layernorm.weight"
+        attention_mapping(hf_to_nt_map, hf_prefix, nt_prefix)
 
+    for i in range(len(config.exit_layer_indices)):
+        j = 0
+        if config.exit_decoder_layer:
+            hf_prefix = f"model.exit_modules.{i}.{j}"
+            nt_prefix = f"model.exit_modules.{i}.{j}.pp_block"
+            attention_mapping(hf_to_nt_map, hf_prefix, nt_prefix)
+            j += 1
+
+        hf_prefix = f"model.exit_modules.{i}.{j}"
+        nt_prefix = f"model.exit_modules.{i}.{j}.pp_block"
+        hf_to_nt_map[f"{hf_prefix}.weight"] = f"{nt_prefix}.weight"
+        j += 1
+        
+        print(config.tie_exit_lm_head, j)
+        if not config.tie_exit_lm_head:
+            hf_prefix = f"model.exit_modules.{i}.{j}"
+            nt_prefix = f"model.exit_modules.{i}.{j}.pp_block"
+            hf_to_nt_map[f"{hf_prefix}.weight"] = f"{nt_prefix}.weight"
+        
     if nt_to_hf:
         nt_to_hf_map = {}
         for hf, nt in hf_to_nt_map.items():
@@ -50,6 +58,20 @@ def get_weight_mapping(config: NanotronLlamaConfig, nt_to_hf: bool = True) -> di
                 nt_to_hf_map[nt] = hf
         return nt_to_hf_map
     return hf_to_nt_map
+
+def attention_mapping(hf_to_nt_map, hf_prefix, nt_prefix):
+    hf_to_nt_map[f"{hf_prefix}.self_attn.q_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.self_attn.k_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.self_attn.v_proj.weight"] = f"{nt_prefix}.attn.qkv_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.self_attn.o_proj.weight"] = f"{nt_prefix}.attn.o_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.mlp.gate_proj.weight"] = f"{nt_prefix}.mlp.gate_up_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.mlp.gate_proj.bias"] = f"{nt_prefix}.mlp.gate_up_proj.bias"
+    hf_to_nt_map[f"{hf_prefix}.mlp.up_proj.weight"] = f"{nt_prefix}.mlp.gate_up_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.mlp.up_proj.bias"] = f"{nt_prefix}.mlp.gate_up_proj.bias"
+    hf_to_nt_map[f"{hf_prefix}.mlp.down_proj.weight"] = f"{nt_prefix}.mlp.down_proj.weight"
+    hf_to_nt_map[f"{hf_prefix}.mlp.down_proj.bias"] = f"{nt_prefix}.mlp.down_proj.bias"
+    hf_to_nt_map[f"{hf_prefix}.input_layernorm.weight"] = f"{nt_prefix}.input_layernorm.weight"
+    hf_to_nt_map[f"{hf_prefix}.post_attention_layernorm.weight"] = f"{nt_prefix}.post_attention_layernorm.weight"
 
 
 def get_config_mapping(nt_to_hf: bool = True) -> dict[str, str]:
@@ -75,6 +97,10 @@ def get_config_mapping(nt_to_hf: bool = True) -> dict[str, str]:
         "tie_word_embeddings": "tie_word_embeddings",
         "use_cache": "use_cache",
         "vocab_size": "vocab_size",
+        "tie_exit_lm_head": "tie_exit_lm_head",
+        "output_exit_layer_index": "output_exit_layer_index",
+        "exit_layer_indices": "exit_layer_indices",
+        "exit_decoder_layer": "exit_decoder_layer",
     }
     if nt_to_hf:
         return {nt: hf for hf, nt in hf_to_nt_map.items()}
