@@ -55,6 +55,7 @@ model:
     rope_scaling: null
     rope_theta: 10000.0
     tie_word_embeddings: true
+    tie_exit_lm_head: true
     use_cache: true
     vocab_size: 49168
     use_token_metadata: true

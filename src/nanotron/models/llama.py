@@ -1113,8 +1113,15 @@ class LlamaForTraining(NanotronModel):
             input_ids=input_ids,
             input_mask=input_mask,
         )
+        if self.model.config.use_token_metadata:
+            # Assert all first tokens in batch are the same
+            first_tokens = input_ids[:, 0]  # Get first token of each sequence
+            assert torch.all(first_tokens == first_tokens[0]), "All sequences in batch must start with the same token"
+            intended_exit_layer = [self.model.token_metadata.index(first_tokens[0].item()), 
+                                   len(self.config.exit_layer_indices)]
         loss_list = []
         log_loss = {}
+
         for exit_layer_idx, exit_layer in enumerate(sharded_logits):
             loss = self.loss(
                 sharded_logits=sharded_logits[exit_layer],
@@ -1124,20 +1131,16 @@ class LlamaForTraining(NanotronModel):
                 kldiv_loss=False
             )["loss"]
             if self.model.config.use_token_metadata:
-                # Assert all first tokens in batch are the same
-                first_tokens = input_ids[:, 0]  # Get first token of each sequence
-                assert torch.all(first_tokens == first_tokens[0]), "All sequences in batch must start with the same token"
-                if self.model.token_metadata.index(first_tokens[0].item()) == exit_layer_idx:
+                if exit_layer_idx in intended_exit_layer:
                     loss_list.append(loss)
                     log_loss[f'exit_loss_{exit_layer}'] = loss
-                    # log_rank(f"Loss for exit module {exit_layer_idx} is {loss}", logger=logger, level=logging.INFO, rank=0)
                 else:
-                    loss_list.append(loss * 0) 
+                    loss_list.append(loss * 0)
             else:
                 loss_list.append(loss)
                 log_loss[f'exit_loss_{exit_layer}'] = loss
         # output = {"loss": sum(loss_list)/len(loss_list)}
-        output = {"loss": sum(loss_list)} if self.model.config.use_token_metadata else {"loss": sum(loss_list)/len(loss_list)}
+        output = {"loss": sum(loss_list)/len(intended_exit_layer)} if self.model.config.use_token_metadata else {"loss": sum(loss_list)/len(loss_list)}
         output.update(log_loss)
 
         if self.kldiv_loss:
