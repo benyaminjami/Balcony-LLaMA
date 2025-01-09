@@ -1,6 +1,6 @@
 checkpoints:
   checkpoint_interval: 5000
-  checkpoints_path: /work/parsa/smollm/checkpoints/Smollm_1B_PT_Sorted_Meta
+  checkpoints_path: /work/benyamin/smollm/checkpoints/Smollm_1B_PT_Sorted_Meta
   checkpoints_path_is_shared_file_system: false
   # resume_checkpoint_path: /work/benyamin/smollm/checkpoints/Smollm_1B_Sorted
   save_final_state: false
