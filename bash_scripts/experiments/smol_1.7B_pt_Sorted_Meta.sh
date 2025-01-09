@@ -5,7 +5,7 @@ SYNC_MASTER=false  # Flag to determine whether to sync and check on the master n
 RUN_NAME="Smollm_1B_PT_Sorted_Meta"  # Specify a unique name for this run
 NNODES=${#NODES[@]}
 GRAD_ACCUMULATION=$((36 / NNODES))
-CONFIG_FILE=/work/benyamin/smollm/nanotron/pre-training/smollm2/config_smollm2_1B_sorted_meta.yaml
+CONFIG_FILE=/work/benyamin/smollm/nanotron/pre-training/smollm2/config_smollm2_1B_pt_sorted_meta.yaml
 BRANCH="sorted_general"
 # Define user and node addresses
 USER="benyamin"
