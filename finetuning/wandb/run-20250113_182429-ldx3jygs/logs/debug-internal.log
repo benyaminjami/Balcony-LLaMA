@@ -1,0 +1,2 @@
+{"time":"2025-01-13T18:24:30.152081341Z","level":"INFO","msg":"stream: starting","core version":"0.19.2","symlink path":"/home/parsa/projects/smollm/finetuning/wandb/run-20250113_182429-ldx3jygs/logs/debug-core.log"}
+{"time":"2025-01-13T18:24:30.152195552Z","level":"ERROR+4","msg":"stream_init: failed to fetch credentials: api: couldn't get API key: settings: failed to get API key from netrc: open /home/parsa/.netrc: no such file or directory"}
