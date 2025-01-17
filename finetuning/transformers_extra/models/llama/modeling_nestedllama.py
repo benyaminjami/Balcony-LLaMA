@@ -18,6 +18,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Callable, List, Optional, Tuple, Union
+from dataclasses import dataclass
+from transformers.utils import ModelOutput
 
 import torch
 import torch.utils.checkpoint
@@ -482,6 +484,81 @@ NestedLlama_INPUTS_DOCSTRING = r"""
 """
 
 
+@dataclass
+class BaseModelOutputWithPast(ModelOutput):
+    """
+    Base class for model's outputs that may also contain a past key/values (to speed up sequential decoding).
+
+    Args:
+        last_hidden_state (`torch.FloatTensor` of shape `(batch_size, sequence_length, hidden_size)`):
+            Sequence of hidden-states at the output of the last layer of the model.
+
+            If `past_key_values` is used only the last hidden-state of the sequences of shape `(batch_size, 1,
+            hidden_size)` is output.
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
+            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`) and optionally if
+            `config.is_encoder_decoder=True` 2 additional tensors of shape `(batch_size, num_heads,
+            encoder_sequence_length, embed_size_per_head)`.
+
+            Contains pre-computed hidden-states (key and values in the self-attention blocks and optionally if
+            `config.is_encoder_decoder=True` in the cross-attention blocks) that can be used (see `past_key_values`
+            input) to speed up sequential decoding.
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
+            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    last_hidden_state: Tuple[torch.FloatTensor] = None
+    past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
+    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+
+
+@dataclass
+class CausalLMOutputWithPast(ModelOutput):
+    """
+    Base class for causal language model (or autoregressive) outputs.
+
+    Args:
+        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `labels` is provided):
+            Language modeling loss (for next-token prediction).
+        logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
+            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
+            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`)
+
+            Contains pre-computed hidden-states (key and values in the self-attention blocks) that can be used (see
+            `past_key_values` input) to speed up sequential decoding.
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
+            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    logits: Tuple[torch.FloatTensor] = None
+    past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
+    attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
+
+
 @add_start_docstrings(
     "The bare NestedLlama Model outputting raw hidden-states without any specific head on top.",
     NestedLlama_START_DOCSTRING,
@@ -498,6 +575,7 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
+        self.num_forward_layers = config.num_hidden_layers
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList(
@@ -515,11 +593,8 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
             ]) for i in range(len(config.exit_layer_indices))
         ])
         
-        self.output_exit_layer = None
-        if config.output_exit_layer_index is not None:
-            self.config.num_hidden_layers = config.exit_layer_indices[config.output_exit_layer_index] + 1
-            config.num_hidden_layers = config.exit_layer_indices[config.output_exit_layer_index] + 1
-            self.output_exit_layer = self.exit_modules[config.output_exit_layer_index]
+        if not config.output_full_model and config.output_exit_layers is not None:
+            self.num_forward_layers = max(config.output_exit_layers)     
         
         self.norm = NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = NestedLlamaRotaryEmbedding(config=config)
@@ -590,12 +665,11 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         # decoder layers
-        all_hidden_states = () if output_hidden_states else None
+        all_hidden_states = ()
         all_self_attns = () if output_attentions else None
 
-        for decoder_layer in self.layers[: self.config.num_hidden_layers]:
-            if output_hidden_states:
-                all_hidden_states += (hidden_states,)
+        for decoder_layer in self.layers[: self.num_forward_layers]:
+            all_hidden_states += (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
                 layer_outputs = self._gradient_checkpointing_func(
@@ -627,30 +701,37 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
+        last_hidden_states = tuple()
         # NESTED
-        if self.output_exit_layer is not None:
-            if self.config.exit_decoder_layer:
-                hidden_states = self.output_exit_layer[0](
-                    hidden_states,
-                    attention_mask=causal_mask,
-                    position_ids=position_ids,
-                    past_key_value=past_key_values,
-                    output_attentions=output_attentions,
-                    use_cache=use_cache,
-                    cache_position=cache_position,
-                    position_embeddings=position_embeddings,
-                    **flash_attn_kwargs,
-                )[0]
-            hidden_states = self.output_exit_layer[-1](hidden_states)
-        else:
-            hidden_states = self.norm(hidden_states)
+        if self.config.output_exit_layers is not None:
+            for output_exit_layer in self.exit_modules:
+                if self.config.exit_decoder_layer:
+                    hidden_states = output_exit_layer[0](
+                        all_hidden_states[output_exit_layer],
+                        attention_mask=causal_mask,
+                        position_ids=position_ids,
+                        past_key_value=past_key_values,
+                        output_attentions=output_attentions,
+                        use_cache=use_cache,
+                        cache_position=cache_position,
+                        position_embeddings=position_embeddings,
+                        **flash_attn_kwargs,
+                    )[0]
+                    hidden_states = output_exit_layer[1](hidden_states)
+                else:
+                    hidden_states = output_exit_layer[0](hidden_states)
+
+                last_hidden_states += (hidden_states,)
+        
+        hidden_states = self.norm(hidden_states)
+        all_hidden_states += (hidden_states,)
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
         output = BaseModelOutputWithPast(
-            last_hidden_state=hidden_states,
+            last_hidden_states=hidden_states,
             past_key_values=past_key_values if use_cache else None,
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
@@ -788,17 +869,10 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
 
     def __init__(self, config: NestedLlamaConfig):
         super().__init__(config)
-
-        if config.output_exit_layer_index is not None:
-            assert config.output_exit_layer_index in config.exit_layer_indices, (
-                f"output_exit_layer_index should be one of the exit_layer_indices: {config.exit_layer_indices}")
-            config.output_exit_layer_index = config.exit_layer_indices.index(config.output_exit_layer_index)
-            
+        
         self.model = NestedLlamaModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        if not config.tie_exit_lm_head and config.output_exit_layer_index is not None:
-                self.lm_head = self.model.exit_modules[config.output_exit_layer_index][-1]
         
         # Initialize weights and apply final processing
         self.post_init()
@@ -890,21 +964,42 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
             **kwargs,
         )
 
-        hidden_states = outputs[0]
+        last_hidden_states = outputs[0]
+
+        if self.config.output_full_model:
+            assert len(last_hidden_states) == self.config.output_exit_layers + 1
+        else:
+            assert len(last_hidden_states) == self.config.output_exit_layers
+        
+        
+        exit_logtis = tuple()
+        for i, output_exit_layer in self.config.output_exit_layers:
+            hidden_states = last_hidden_states[i]
+            if self.config.tie_exit_lm_head:
+                exit_index = self.config.exit_layer_indices.index(output_exit_layer)
+                lm_head = self.model.exit_modules[exit_index][-1]
+            else:
+                lm_head = self.lm_head
+            logits = lm_head(hidden_states)
+            exit_logtis += (logits,)
+        
+        
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
-        logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+        if self.config.output_full_model:
+            hidden_states = last_hidden_states[-1]
+            logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
 
         loss = None
-        if labels is not None:
+        if labels is not None and self.config.output_full_model:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
 
         if not return_dict:
-            output = (logits,) + outputs[1:]
+            output = (exit_logtis,) + outputs[1:]
             return (loss,) + output if loss is not None else output
 
         return CausalLMOutputWithPast(
             loss=loss,
-            logits=logits,
+            logits=exit_logtis,
             past_key_values=outputs.past_key_values,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,

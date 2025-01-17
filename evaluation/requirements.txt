@@ -1,3 +1,0 @@
-lighteval[accelerate,extended_tasks,vllm] @ git+https://github.com/huggingface/lighteval@ea46419a93fb390e8f694f7c6c64c1e684487c9d
-fsspec>=2024.3.0
-word2number

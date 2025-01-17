@@ -177,7 +177,8 @@ class NestedLlamaConfig(PretrainedConfig):
         mlp_bias=False,
         head_dim=None,
         tie_exit_lm_head=None,
-        output_exit_layer_index=None,
+        output_exit_layers=None,
+        output_full_model=True,
         exit_layer_indices=None,
         exit_decoder_layer=False,
         **kwargs,
@@ -214,7 +215,8 @@ class NestedLlamaConfig(PretrainedConfig):
         self.tie_exit_lm_head = tie_exit_lm_head
         self.exit_layer_indices = exit_layer_indices
         self.exit_decoder_layer = exit_decoder_layer
-        self.output_exit_layer_index = output_exit_layer_index
+        self.output_full_model = output_full_model
+        self.output_exit_layers = output_exit_layers
         
         super().__init__(
             pad_token_id=pad_token_id,
@@ -223,6 +225,15 @@ class NestedLlamaConfig(PretrainedConfig):
             tie_word_embeddings=tie_word_embeddings,
             **kwargs,
         )
+        
+        self.tie_exit_lm_head = self.tie_exit_lm_head if self.tie_exit_lm_head is not None else self.tie_word_embeddings
+        if isinstance(self.output_exit_layers, int):
+            self.output_exit_layers = [self.output_exit_layers]
+        if self.output_exit_layers is not None: 
+            for self.output_exit_layer in self.output_exit_layers:
+                assert self.output_exit_layer in self.exit_layer_indices, (
+                    f"output_exit_layers {output_exit_layers} should be in the exit_layer_indices: {exit_layer_indices}"
+                )
 
 
 __all__ = ["NestedLlamaConfig"]

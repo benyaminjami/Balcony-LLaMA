@@ -52,7 +52,7 @@ from train_config import SFTDistillConfig
 
 import torch.distributed as dist
 from datetime import timedelta
-from aim.hugging_face import AimCallback
+# from aim.hugging_face import AimCallback
 
 logger = logging.getLogger(__name__)
 
@@ -129,10 +129,10 @@ def main():
     
     model = model_args.model_name_or_path
     # For ChatML we need to add special tokens and resize the embedding layer
-    if "<|im_start|>" in tokenizer.chat_template and "gemma-tokenizer-chatml" not in tokenizer.name_or_path:
-        model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
-        model, tokenizer = setup_chat_format(model, tokenizer)
-        model_kwargs = None
+    # if "<|im_start|>" in tokenizer.chat_template and "gemma-tokenizer-chatml" not in tokenizer.name_or_path:
+    #     model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
+    #     model, tokenizer = setup_chat_format(model, tokenizer)
+    #     model_kwargs = None
 
     #####################
     # Apply chat template
@@ -171,8 +171,21 @@ def main():
 
     # load model and dataset
     token = os.environ.get("HF_TOKEN", None)
-    model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
 
+    model = AutoModelForCausalLM.from_pretrained(
+        model_args.model_name_or_path,
+        tie_exit_lm_head=True,
+        output_exit_layers=[4],
+        output_full_model=True,
+        exit_layer_indices=[4, 8, 12],
+        exit_decoder_layer=True,
+    )
+    
+    if training_args.unfreeze_layers:
+        for name, param in model.named_parameters():
+            if any(layer in name for layer in training_args.unfreeze_layers):
+                param.requires_grad = False
+    
     # model.config.num_hidden_layers = 4
 
     # # config
@@ -212,17 +225,17 @@ def main():
     #     num_transformer_submodules=1,
     # )
 
-    aim_callback = AimCallback(experiment=training_args.output_dir.split('/')[-1])
+    # aim_callback = AimCallback(experiment=training_args.output_dir.split('/')[-1])
 
     # setup the trainer
-    trainer = SFTTrainer(
+    trainer = KDTrainer(
         model=model,
         train_dataset=train_dataset.to_iterable_dataset(),
         # eval_dataset=eval_dataset.to_iterable_dataset(),
         args=training_args,
         peft_config=pt_config,
         tokenizer=tokenizer,
-        callbacks=[aim_callback],
+        # callbacks=[aim_callback],
         # dataset_kwargs=training_args.dataset_kwargs,
     )
 

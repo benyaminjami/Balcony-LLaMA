@@ -1,7 +1,7 @@
 # Model arguments
-model_name_or_path: /ephemeral/parsa/hf
+model_name_or_path: /work/benyamin/smollm/hf_checkpoints/Smollm_1B
 with_distill: false
-decontaminate: true
+decontaminate: false
 torch_dtype: bfloat16
 # use_flash_attention_2: true
 
@@ -23,7 +23,7 @@ gradient_accumulation_steps: 4
 gradient_checkpointing: false
 # gradient_checkpointing_kwargs:
 #   use_reentrant: true
-learning_rate: 2.0e-05
+learning_rate: 5.0e-04
 log_level: info
 logging_steps: 10
 logging_strategy: steps
@@ -43,8 +43,12 @@ report_to:
 save_strategy: "steps"
 save_steps: 5000
 save_total_limit: 100
-output_dir: /ephemeral/parsa/checkpoints/prompt_exit_4
+output_dir: /work/benyamin/smollm/finetune/checkpoints/Smollm_1B_balcony
 seed: 42
 warmup_ratio: 0.01
 kl_weight: 1.0
 ce_weight: 0.0
+
+freeze_model: true
+unfreeze_layers:
+  - "exit_modules.0" # TODO: check if this is the right layer to unfreeze and if it works as expected

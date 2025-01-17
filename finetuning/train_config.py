@@ -54,6 +54,7 @@ class DistillConfig(transformers.TrainingArguments):
         metadata={"help": "The total progressive step."},
     )
 
+
 @dataclass
 class SFTDistillConfig(SFTConfig):
     """
@@ -85,6 +86,14 @@ class SFTDistillConfig(SFTConfig):
     ce_weight: float = field(
         default=1,
         metadata={"help": "Ratio of CE loss."},
+    )
+    freeze_model: bool = field(
+        default=False,
+        metadata={"help": "Whether to freeze the model."},
+    )
+    unfreeze_layers: List[str] = field(
+        default=None,
+        metadata={"help": "Freeze layers."},
     )
 
 # Copy from HuggingFace H4ArgumentParser

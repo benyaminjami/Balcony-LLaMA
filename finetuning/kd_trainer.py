@@ -39,34 +39,35 @@ class KDTrainer(SFTTrainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         # compute teacher output in eval mode
-        outputs_teacher = self.model(
+        outputs = model(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["labels"],
+            return_dict=True
         )
+        logits = outputs.logits
         
-        # compute student output
-        teacher_logits = outputs_teacher.logits[-1].detach()
-        if self.ce_weight == 0:
-            outputs_student = model(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"]
-            )
-            cross_entropy_loss = 0.0
-        else:
-            # compute student output
-            outputs_student = model(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                labels=inputs["labels"],
-            )
-            cross_entropy_loss = outputs_student.loss
+        if model.config.output_full_model:
+            teacher_logits = logits[-1].detach()
+            logits = logits[:-1]
+            #TODO calculate the kd loss
+        if self.ce_weight > 0:
+            ce_losses = []
+            for lg in logits:
+                ce_loss = self.model.loss_function(logits=logits, labels=inputs["labels"], vocab_size=self.model.config.vocab_size)
+                ce_losses.append(ce_loss)
+            total_ce_loss = sum(ce_losses) / len(ce_losses)
+        
+        if self.kl_weight > 0:
+            assert model.config.output_full_model, "KL loss requires full model output"
+            kl_losses = []
+            for lg in logits:
+                kl_loss = F.kl_div(F.log_softmax(lg, dim=-1), F.softmax(teacher_logits, dim=-1), reduction='batchmean')
+            total_kl_loss = sum(kl_losses) / len(kl_losses)
         # compute cross entropy loss
-        student_logits = outputs_student.logits
-        kl_loss = F.kl_div(F.log_softmax(student_logits, dim=-1), F.softmax(teacher_logits, dim=-1), reduction='batchmean')
-        loss = self.kl_weight * kl_loss + self.ce_weight * cross_entropy_loss
+        loss = self.kl_weight * total_kl_loss + self.ce_weight * total_ce_loss
         # Return loss
-        return (loss, outputs_student) if return_outputs else loss
+        return (loss, outputs) if return_outputs else loss
 
     # def _prepare_deepspeed(self, model: PreTrainedModelWrapper):
     #     # Adapted from accelerate: https://github.com/huggingface/accelerate/blob/739b135f8367becb67ffaada12fe76e3aa60fefd/src/accelerate/accelerator.py#L1473
