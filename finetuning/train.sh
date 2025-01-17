@@ -12,4 +12,4 @@
 #         --warmup_steps 100 \
 #         --num_proc "$(nproc)"
 
-ACCELERATE_LOG_LEVEL=info accelerate launch --config_file deepspeed_zero3.yaml train.py experiments/test.yaml
+ACCELERATE_LOG_LEVEL=info accelerate launch --config_file /work/benyamin/smollm/finetuning/finetuning/deepspeed_zero3.yaml train.py experiments/test.yaml

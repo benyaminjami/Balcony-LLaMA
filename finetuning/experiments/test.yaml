@@ -1,5 +1,5 @@
 # Model arguments
-model_name_or_path: /ephemeral/parsa/hf_checkpoints/Smollm_1B/
+model_name_or_path: /work/benyamin/smollm/hf_checkpoints/Smollm_1B/
 with_distill: false
 decontaminate: false
 torch_dtype: bfloat16
@@ -14,7 +14,7 @@ dataset_configs:
 dataset_splits:
 - train
 preprocessing_num_workers: 64
-
+load_from_disk: /work/benyamin/datasets/hf_cosmo/
 # SFT trainer config
 bf16: true
 do_eval: false
@@ -43,7 +43,7 @@ report_to:
 save_strategy: "steps"
 save_steps: 5000
 save_total_limit: 100
-output_dir: /ephemeral/parsa/checkpoints/Smollm_1B_balcony
+output_dir: /work/benyamin/smollm/finetuning/checkpoints/Smollm_1B_balcony
 seed: 42
 warmup_ratio: 0.01
 kl_weight: 1.0
