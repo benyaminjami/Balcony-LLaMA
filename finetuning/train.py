@@ -178,28 +178,44 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         tie_exit_lm_head=True,
-        output_exit_layers=[4],
+        output_exit_layers=[4, 8, 12],
         output_full_model=True,
         exit_layer_indices=[4, 8, 12],
         exit_decoder_layer=True,
     )
     
-    if training_args.unfreeze_layers:
+    for i, exit_module in enumerate(model.model.exit_modules):
+        if model.config.exit_decoder_layer:
+            layer_idx = model.config.exit_layer_indices[i]
+            exit_module[0].load_state_dict(model.model.layers[-1].state_dict())
+            exit_module[1].load_state_dict(
+                model.model.layers[layer_idx].input_layernorm.state_dict()
+            )
+            # print('FFFFFFFF', layer_idx, )
+        else:
+            exit_module[0].load_state_dict(
+                model.model.layers[layer_idx-1].input_layernorm.state_dict()
+            )
+    
+    
+    if training_args.freeze_model:
         for name, param in model.named_parameters():
             if any(layer in name for layer in training_args.unfreeze_layers):
+                param.requires_grad = True
+            else:
                 param.requires_grad = False
     
     # # config
 
-    pt_config = PromptTuningConfig(
-        peft_type="PROMPT_TUNING",
-        task_type="CAUSAL_LM",
-        num_virtual_tokens=20,
-        token_dim=model.config.hidden_size,
-        num_transformer_submodules=1,
-        num_attention_heads=model.config.num_attention_heads,
-        num_layers=model.config.num_hidden_layers,
-    )
+    # pt_config = PromptTuningConfig(
+    #     peft_type="PROMPT_TUNING",
+    #     task_type="CAUSAL_LM",
+    #     num_virtual_tokens=20,
+    #     token_dim=model.config.hidden_size,
+    #     num_transformer_submodules=1,
+    #     num_attention_heads=model.config.num_attention_heads,
+    #     num_layers=model.config.num_hidden_layers,
+    # )
 
     # lora_config = LoraConfig(
     #     r=16,

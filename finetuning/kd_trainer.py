@@ -50,7 +50,8 @@ class KDTrainer(SFTTrainer):
         
         if model.module.model.config.output_full_model:
             teacher_logits = logits[-1].detach()
-            self.additional_state.add_metrics(**{f'ce_loss_{model_config.num_hidden_layers}': outputs.loss})
+            self.additional_state.add_metrics(**{f'ce_loss_{model_config.num_hidden_layers}': outputs.losses[-1]})
+            outputs.losses = outputs.losses[:-1]
             logits = logits[:-1]
             #TODO calculate the kd loss
 

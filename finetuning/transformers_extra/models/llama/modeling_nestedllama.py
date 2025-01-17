@@ -724,20 +724,24 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
 
                 last_hidden_states += (exit_module_hidden_states,)
         
-        hidden_states = self.norm(hidden_states)
-        all_hidden_states += (hidden_states,)
+        if self.config.output_full_model:
+            hidden_states = self.norm(hidden_states)
+            all_hidden_states += (hidden_states,)
 
         if self.config.output_full_model:
             last_hidden_states += (hidden_states,)
 
         # # add hidden states from the last decoder layer
-        # if output_hidden_states:
-        #     all_hidden_states += (hidden_states,)
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
+        
+        else:
+            del all_hidden_states
 
         output = BaseModelOutputWithPast(
             last_hidden_states=last_hidden_states,
             past_key_values=past_key_values if use_cache else None,
-            hidden_states=all_hidden_states,
+            hidden_states=all_hidden_states if output_hidden_states else None,
             attentions=all_self_attns,
         )
         return output if return_dict else output.to_tuple()
@@ -1005,7 +1009,7 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
             return (loss,) + output if loss is not None else output
 
         return CausalLMOutputWithPast(
-            loss=losses,
+            losses=losses,
             logits=exit_logtis,
             past_key_values=outputs.past_key_values,
             hidden_states=outputs.hidden_states,

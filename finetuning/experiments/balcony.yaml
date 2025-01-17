@@ -1,6 +1,5 @@
 # Model arguments
 model_name_or_path: /work/benyamin/smollm/hf_checkpoints/Smollm_1B/
-with_distill: false
 decontaminate: false
 torch_dtype: bfloat16
 # use_flash_attention_2: true
@@ -29,21 +28,20 @@ logging_steps: 10
 logging_strategy: steps
 lr_scheduler_type: cosine
 max_seq_length: 2048
-max_steps: 100000
+max_steps: 30000
 num_train_epochs: 1
-output_dir: Llama3.2-Mamba2-3B-distill
+output_dir: /work/benyamin/smollm/finetuning/checkpoints/Smollm_1B_balcony
 overwrite_output_dir: true
 # per_device_eval_batch_size: 4
-per_device_train_batch_size: 2
+per_device_train_batch_size: 8
 push_to_hub: false
 remove_unused_columns: true
 packing: true
 report_to:
-- none
+- wandb
 save_strategy: "steps"
-save_steps: 5000
-save_total_limit: 100
-output_dir: /work/benyamin/smollm/finetuning/checkpoints/Smollm_1B_balcony
+save_steps: 2000
+save_total_limit: 10
 seed: 42
 warmup_ratio: 0.01
 kl_weight: 1.0
