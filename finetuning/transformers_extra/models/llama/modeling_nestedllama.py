@@ -517,7 +517,7 @@ class BaseModelOutputWithPast(ModelOutput):
             heads.
     """
 
-    last_hidden_state: Tuple[torch.FloatTensor] = None
+    last_hidden_states: Tuple[torch.FloatTensor] = None
     past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
     attentions: Optional[Tuple[torch.FloatTensor, ...]] = None
@@ -704,9 +704,10 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
         last_hidden_states = tuple()
         # NESTED
         if self.config.output_exit_layers is not None:
-            for output_exit_layer in self.exit_modules:
+            for output_exit_layer in self.config.output_exit_layers:
+                exit_index = self.config.exit_layer_indices.index(output_exit_layer)
                 if self.config.exit_decoder_layer:
-                    hidden_states = output_exit_layer[0](
+                    exit_module_hidden_states = self.exit_modules[exit_index][0](
                         all_hidden_states[output_exit_layer],
                         attention_mask=causal_mask,
                         position_ids=position_ids,
@@ -717,21 +718,24 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
                         position_embeddings=position_embeddings,
                         **flash_attn_kwargs,
                     )[0]
-                    hidden_states = output_exit_layer[1](hidden_states)
+                    exit_module_hidden_states = self.exit_modules[exit_index][1](exit_module_hidden_states)
                 else:
-                    hidden_states = output_exit_layer[0](hidden_states)
+                    exit_module_hidden_states = self.exit_modules[exit_index][0](exit_module_hidden_states)
 
-                last_hidden_states += (hidden_states,)
+                last_hidden_states += (exit_module_hidden_states,)
         
         hidden_states = self.norm(hidden_states)
         all_hidden_states += (hidden_states,)
 
-        # add hidden states from the last decoder layer
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
+        if self.config.output_full_model:
+            last_hidden_states += (hidden_states,)
+
+        # # add hidden states from the last decoder layer
+        # if output_hidden_states:
+        #     all_hidden_states += (hidden_states,)
 
         output = BaseModelOutputWithPast(
-            last_hidden_states=hidden_states,
+            last_hidden_states=last_hidden_states,
             past_key_values=past_key_values if use_cache else None,
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
@@ -967,15 +971,15 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
         last_hidden_states = outputs[0]
 
         if self.config.output_full_model:
-            assert len(last_hidden_states) == self.config.output_exit_layers + 1
+            assert len(last_hidden_states) == len(self.config.output_exit_layers) + 1
         else:
-            assert len(last_hidden_states) == self.config.output_exit_layers
+            assert len(last_hidden_states) == len(self.config.output_exit_layers)
         
         
         exit_logtis = tuple()
-        for i, output_exit_layer in self.config.output_exit_layers:
+        for i, output_exit_layer in enumerate(self.config.output_exit_layers):
             hidden_states = last_hidden_states[i]
-            if self.config.tie_exit_lm_head:
+            if not self.config.tie_exit_lm_head:
                 exit_index = self.config.exit_layer_indices.index(output_exit_layer)
                 lm_head = self.model.exit_modules[exit_index][-1]
             else:
@@ -988,6 +992,7 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
         if self.config.output_full_model:
             hidden_states = last_hidden_states[-1]
             logits = self.lm_head(hidden_states[:, -num_logits_to_keep:, :])
+            exit_logtis += (logits,)
 
         loss = None
         if labels is not None and self.config.output_full_model:

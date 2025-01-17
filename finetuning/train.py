@@ -29,7 +29,7 @@ import torch
 import transformers
 from transformers import AutoConfig, AutoModelForCausalLM, set_seed, BitsAndBytesConfig
 from peft import AutoPeftModelForCausalLM, LoraConfig
-from transformers_extra import *
+from transformers_extra.models.nested_llama_wrapper.modeling_nested_llama_wrapper import LlamaEarlyExitWrapper, LlamaConfigWrapper
 from peft import PromptEmbedding, PromptTuningConfig, MultitaskPromptTuningConfig, TaskType, PrefixTuningConfig
 
 from alignment import (
@@ -52,7 +52,7 @@ from train_config import SFTDistillConfig
 
 import torch.distributed as dist
 from datetime import timedelta
-# from aim.hugging_face import AimCallback
+from aim.hugging_face import AimCallback
 
 logger = logging.getLogger(__name__)
 
@@ -107,15 +107,15 @@ def main():
     )
 
     # Transformation function
-    def add_messages_column(example):
-        messages = [
-            {"role": "user", "content": example["prompt"]},
-            {"role": "assistant", "content": example["text"]}
-        ]
-        return {"messages": messages}
+    # def add_messages_column(example):
+    #     messages = [
+    #         {"role": "user", "content": example["prompt"]},
+    #         {"role": "assistant", "content": example["text"]}
+    #     ]
+    #     return {"messages": messages}
 
-    raw_datasets = raw_datasets.map(add_messages_column, num_proc=data_args.preprocessing_num_workers, remove_columns=["prompt", "text"])
-    # raw_datasets = load_from_disk("/ephemeral/parsa/datasets")
+    # raw_datasets = raw_datasets.map(add_messages_column, num_proc=data_args.preprocessing_num_workers, remove_columns=["prompt", "text"])
+    raw_datasets = load_from_disk("/ephemeral/parsa/datasets")
 
     logger.info(
         f"Training on the following datasets and their proportions: {[split + ' : ' + str(dset.num_rows) for split, dset in raw_datasets.items()]}"
@@ -137,28 +137,28 @@ def main():
     #####################
     # Apply chat template
     #####################
-    raw_datasets = raw_datasets.map(
-        apply_chat_template,
-        fn_kwargs={
-            "tokenizer": tokenizer,
-            "task": "sft",
-            "auto_insert_empty_system_msg": data_args.auto_insert_empty_system_msg,
-        },
-        num_proc=data_args.preprocessing_num_workers,
-        remove_columns=column_names,
-        desc="Applying chat template",
-    )
+    # raw_datasets = raw_datasets.map(
+    #     apply_chat_template,
+    #     fn_kwargs={
+    #         "tokenizer": tokenizer,
+    #         "task": "sft",
+    #         "auto_insert_empty_system_msg": data_args.auto_insert_empty_system_msg,
+    #     },
+    #     num_proc=data_args.preprocessing_num_workers,
+    #     remove_columns=column_names,
+    #     desc="Applying chat template",
+    # )
 
     ##########################
     # Decontaminate benchmarks
     ##########################
-    if training_args.decontaminate:
-        num_raw_train_samples = len(raw_datasets["train"])
-        raw_datasets = raw_datasets.filter(decontaminate_humaneval, batched=True, batch_size=10_000, num_proc=data_args.preprocessing_num_workers)
-        num_filtered_train_samples = num_raw_train_samples - len(raw_datasets["train"])
-        logger.info(
-            f"Decontaminated {num_filtered_train_samples} ({num_filtered_train_samples/num_raw_train_samples * 100:.2f}%) samples from the training set."
-        )
+    # if training_args.decontaminate:
+    #     num_raw_train_samples = len(raw_datasets["train"])
+    #     raw_datasets = raw_datasets.filter(decontaminate_humaneval, batched=True, batch_size=10_000, num_proc=data_args.preprocessing_num_workers)
+    #     num_filtered_train_samples = num_raw_train_samples - len(raw_datasets["train"])
+    #     logger.info(
+    #         f"Decontaminated {num_filtered_train_samples} ({num_filtered_train_samples/num_raw_train_samples * 100:.2f}%) samples from the training set."
+    #     )
 
     # raw_datasets.save_to_disk("/ephemeral/parsa/datasets")
 
@@ -225,7 +225,7 @@ def main():
     #     num_transformer_submodules=1,
     # )
 
-    # aim_callback = AimCallback(experiment=training_args.output_dir.split('/')[-1])
+    aim_callback = AimCallback(experiment=training_args.output_dir.split('/')[-1])
 
     # setup the trainer
     trainer = KDTrainer(
@@ -233,9 +233,9 @@ def main():
         train_dataset=train_dataset.to_iterable_dataset(),
         # eval_dataset=eval_dataset.to_iterable_dataset(),
         args=training_args,
-        peft_config=pt_config,
+        # peft_config=pt_config,
         tokenizer=tokenizer,
-        # callbacks=[aim_callback],
+        callbacks=[aim_callback],
         # dataset_kwargs=training_args.dataset_kwargs,
     )
 

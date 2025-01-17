@@ -174,3 +174,5 @@ cython_debug/
 !finetuning/**
 
 */__pycache__/*
+
+*.pyc

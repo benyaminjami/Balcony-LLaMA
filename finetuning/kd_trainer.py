@@ -26,7 +26,7 @@ class KDTrainer(SFTTrainer):
 
     def __init__(
         self,
-        teacher_model: Union[PreTrainedModel, nn.Module, str],
+        # teacher_model: Union[PreTrainedModel, nn.Module, str],
         args: Optional[SFTDistillConfig] = None,
         *sft_args,
         **kwargs,
@@ -47,22 +47,25 @@ class KDTrainer(SFTTrainer):
         )
         logits = outputs.logits
         
-        if model.config.output_full_model:
+        if model.module.model.config.output_full_model:
             teacher_logits = logits[-1].detach()
             logits = logits[:-1]
             #TODO calculate the kd loss
+        total_ce_loss = 0
         if self.ce_weight > 0:
             ce_losses = []
             for lg in logits:
                 ce_loss = self.model.loss_function(logits=logits, labels=inputs["labels"], vocab_size=self.model.config.vocab_size)
                 ce_losses.append(ce_loss)
             total_ce_loss = sum(ce_losses) / len(ce_losses)
-        
+            
+        total_kl_loss = 0
         if self.kl_weight > 0:
-            assert model.config.output_full_model, "KL loss requires full model output"
+            assert model.module.model.config.output_full_model, "KL loss requires full model output"
             kl_losses = []
             for lg in logits:
                 kl_loss = F.kl_div(F.log_softmax(lg, dim=-1), F.softmax(teacher_logits, dim=-1), reduction='batchmean')
+                kl_losses.append(kl_loss)
             total_kl_loss = sum(kl_losses) / len(kl_losses)
         # compute cross entropy loss
         loss = self.kl_weight * total_kl_loss + self.ce_weight * total_ce_loss
