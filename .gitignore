@@ -163,3 +163,14 @@ cython_debug/
 
 # Mac
 *.DS_Store
+
+# Ignore everything
+*
+
+# Un-ignore the folder you want to include
+!finetuning/
+
+# Un-ignore all files and subfolders inside the folder
+!finetuning/**
+
+*/__pycache__/*

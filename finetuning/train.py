@@ -23,11 +23,14 @@ import sys
 import os
 
 import datasets
+from datasets import load_from_disk
+
 import torch
 import transformers
 from transformers import AutoConfig, AutoModelForCausalLM, set_seed, BitsAndBytesConfig
 from peft import AutoPeftModelForCausalLM, LoraConfig
 from transformers_extra import *
+from peft import PromptEmbedding, PromptTuningConfig, MultitaskPromptTuningConfig, TaskType, PrefixTuningConfig
 
 from alignment import (
     DataArguments,
@@ -49,6 +52,7 @@ from train_config import SFTDistillConfig
 
 import torch.distributed as dist
 from datetime import timedelta
+from aim.hugging_face import AimCallback
 
 logger = logging.getLogger(__name__)
 
@@ -91,41 +95,6 @@ def main():
     if last_checkpoint is not None and training_args.resume_from_checkpoint is None:
         logger.info(f"Checkpoint detected, resuming training at {last_checkpoint=}.")
 
-    # config
-    lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        target_modules=["q_proj", "v_proj"],
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
-
-    from peft import PromptEmbedding, PromptTuningConfig, MultitaskPromptTuningConfig, TaskType
-
-    pt_config = PromptTuningConfig(
-        peft_type="PROMPT_TUNING",
-        task_type="CAUSAL_LM",
-        num_virtual_tokens=20,
-        token_dim=2048,
-        num_transformer_submodules=1,
-        num_attention_heads=32,
-        num_layers=24,
-        # prompt_tuning_init="TEXT",
-        # prompt_tuning_init_text="Predict if sentiment of this review is positive, negative or neutral",
-        # tokenizer_name_or_path="t5-base",
-    )
-
-    mpt_config = MultitaskPromptTuningConfig(
-        num_tasks=3,
-        task_type=TaskType.CAUSAL_LM,
-        num_virtual_tokens=20,
-        num_transformer_submodules=1,
-    )
-
-    # t5_model.shared is the word embeddings of the base model
-    # prompt_embedding = PromptEmbedding(config, t5_model.shared)
-
     ###############
     # Load datasets
     ###############
@@ -133,8 +102,20 @@ def main():
         data_args,
         splits=data_args.dataset_splits,
         configs=data_args.dataset_configs,
-        columns_to_keep=["messages", "chosen", "rejected", "prompt", "completion", "label"],
+        # columns_to_keep=["messages", "chosen", "rejected", "prompt", "completion", "label"],
+        columns_to_keep=["prompt", "text"],
     )
+
+    # Transformation function
+    def add_messages_column(example):
+        messages = [
+            {"role": "user", "content": example["prompt"]},
+            {"role": "assistant", "content": example["text"]}
+        ]
+        return {"messages": messages}
+
+    raw_datasets = raw_datasets.map(add_messages_column, num_proc=data_args.preprocessing_num_workers, remove_columns=["prompt", "text"])
+    # raw_datasets = load_from_disk("/ephemeral/parsa/datasets")
 
     logger.info(
         f"Training on the following datasets and their proportions: {[split + ' : ' + str(dset.num_rows) for split, dset in raw_datasets.items()]}"
@@ -148,10 +129,10 @@ def main():
     
     model = model_args.model_name_or_path
     # For ChatML we need to add special tokens and resize the embedding layer
-    # if "<|im_start|>" in tokenizer.chat_template and "gemma-tokenizer-chatml" not in tokenizer.name_or_path:
-    #     model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
-    #     model, tokenizer = setup_chat_format(model, tokenizer)
-    #     model_kwargs = None
+    if "<|im_start|>" in tokenizer.chat_template and "gemma-tokenizer-chatml" not in tokenizer.name_or_path:
+        model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
+        model, tokenizer = setup_chat_format(model, tokenizer)
+        model_kwargs = None
 
     #####################
     # Apply chat template
@@ -179,8 +160,10 @@ def main():
             f"Decontaminated {num_filtered_train_samples} ({num_filtered_train_samples/num_raw_train_samples * 100:.2f}%) samples from the training set."
         )
 
+    # raw_datasets.save_to_disk("/ephemeral/parsa/datasets")
+
     train_dataset = raw_datasets["train"]
-    eval_dataset = raw_datasets["test"]
+    # eval_dataset = raw_datasets["test"]
 
     with training_args.main_process_first(desc="Log a few random samples from the processed training set"):
         for index in random.sample(range(len(raw_datasets["train"])), 3):
@@ -190,14 +173,56 @@ def main():
     token = os.environ.get("HF_TOKEN", None)
     model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path)
 
+    # model.config.num_hidden_layers = 4
+
+    # # config
+
+    pt_config = PromptTuningConfig(
+        peft_type="PROMPT_TUNING",
+        task_type="CAUSAL_LM",
+        num_virtual_tokens=20,
+        token_dim=model.config.hidden_size,
+        num_transformer_submodules=1,
+        num_attention_heads=model.config.num_attention_heads,
+        num_layers=model.config.num_hidden_layers,
+    )
+
+    # lora_config = LoraConfig(
+    #     r=16,
+    #     lora_alpha=32,
+    #     lora_dropout=0.05,
+    #     target_modules=["q_proj", "v_proj"],
+    #     bias="none",
+    #     task_type="CAUSAL_LM",
+    # )
+
+    # pre_config = PrefixTuningConfig(
+    #     peft_type="PREFIX_TUNING",
+    #     task_type="CAUSAL_LM",
+    #     num_virtual_tokens=20,
+    #     token_dim=model.config.hidden_size,
+    #     num_transformer_submodules=1,
+    #     num_attention_heads=model.config.num_attention_heads,
+    #     num_layers=model.config.num_hidden_layers,
+    # )
+    # mpt_config = MultitaskPromptTuningConfig(
+    #     num_tasks=3,
+    #     task_type=TaskType.CAUSAL_LM,
+    #     num_virtual_tokens=20,
+    #     num_transformer_submodules=1,
+    # )
+
+    aim_callback = AimCallback(experiment=training_args.output_dir.split('/')[-1])
+
     # setup the trainer
     trainer = SFTTrainer(
         model=model,
         train_dataset=train_dataset.to_iterable_dataset(),
-        eval_dataset=eval_dataset.to_iterable_dataset(),
+        # eval_dataset=eval_dataset.to_iterable_dataset(),
         args=training_args,
         peft_config=pt_config,
         tokenizer=tokenizer,
+        callbacks=[aim_callback],
         # dataset_kwargs=training_args.dataset_kwargs,
     )
 

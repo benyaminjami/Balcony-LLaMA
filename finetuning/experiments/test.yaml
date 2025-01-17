@@ -1,5 +1,5 @@
 # Model arguments
-model_name_or_path: HuggingFaceTB/SmolLM2-1.7B-Instruct
+model_name_or_path: /ephemeral/parsa/hf
 with_distill: false
 decontaminate: true
 torch_dtype: bfloat16
@@ -8,16 +8,17 @@ torch_dtype: bfloat16
 # Data training arguments
 # chat_template: "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}{% endif %}"
 dataset_mixer:
-  JunxiongWang/sftdatasetv3: 1.0
+  HuggingFaceTB/smollm-corpus: 1.0
+dataset_configs: 
+- cosmopedia-v2
 dataset_splits:
 - train
-- test
 preprocessing_num_workers: 64
 
 # SFT trainer config
 bf16: true
-do_eval: true
-evaluation_strategy: epoch
+do_eval: false
+# evaluation_strategy: epoch
 gradient_accumulation_steps: 4
 gradient_checkpointing: false
 # gradient_checkpointing_kwargs:
@@ -28,12 +29,12 @@ logging_steps: 10
 logging_strategy: steps
 lr_scheduler_type: cosine
 max_seq_length: 2048
-max_steps: 50000
+max_steps: 100000
 num_train_epochs: 1
 output_dir: Llama3.2-Mamba2-3B-distill
 overwrite_output_dir: true
-per_device_eval_batch_size: 4
-per_device_train_batch_size: 2
+# per_device_eval_batch_size: 4
+per_device_train_batch_size: 8
 push_to_hub: false
 remove_unused_columns: true
 packing: true
@@ -41,7 +42,8 @@ report_to:
 - none
 save_strategy: "steps"
 save_steps: 5000
-save_total_limit: 1
+save_total_limit: 100
+output_dir: /ephemeral/parsa/checkpoints/prompt_exit_4
 seed: 42
 warmup_ratio: 0.01
 kl_weight: 1.0
