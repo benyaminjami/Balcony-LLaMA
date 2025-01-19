@@ -48,16 +48,17 @@ class KDTrainer(SFTTrainer):
         logits = outputs.logits
         model_config = model.module.model.config
         
+        total_ce_loss = sum(outputs.losses) / len(outputs.losses)
+        
         if model.module.model.config.output_full_model:
             teacher_logits = logits[-1].detach()
+            logits = logits[:-1]
+            
             self.additional_state.add_metrics(**{f'ce_loss_{model_config.num_hidden_layers}': outputs.losses[-1]})
             outputs.losses = outputs.losses[:-1]
-            logits = logits[:-1]
-            #TODO calculate the kd loss
 
         for i, loss in enumerate(outputs.losses):
             self.additional_state.add_metrics(**{f'ce_loss_{model_config.output_exit_layers[i]}': loss})
-        total_ce_loss = sum(outputs.losses) / len(outputs.losses)
             
         total_kl_loss = 0
         if self.kl_weight > 0:

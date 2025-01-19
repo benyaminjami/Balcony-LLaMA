@@ -11,8 +11,9 @@
 #         --learning_rate 3e-4 \
 #         --warmup_steps 100 \
 #         --num_proc "$(nproc)"
+CONFIG_FILE=$1
 export WANDB_API_KEY="44735889af01972b7a789b2a6b9d6f95ca6b9615"
 export WANDB_PROJECT="Nested_FT"
 ACCELERATE_LOG_LEVEL=info accelerate launch \
     --config_file /work/benyamin/smollm/finetuning/finetuning/ddp.yaml \
-    train.py experiments/balcony.yaml > /work/benyamin/smollm/finetuning/logs/balcony.log 2>&1 &
+    train.py $CONFIG_FILE > /work/benyamin/smollm/finetuning/logs/balcony.log 2>&1 &

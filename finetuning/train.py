@@ -185,8 +185,8 @@ def main():
     )
     
     for i, exit_module in enumerate(model.model.exit_modules):
+        layer_idx = model.config.exit_layer_indices[i]
         if model.config.exit_decoder_layer:
-            layer_idx = model.config.exit_layer_indices[i]
             exit_module[0].load_state_dict(model.model.layers[-1].state_dict())
             exit_module[1].load_state_dict(
                 model.model.layers[layer_idx].input_layernorm.state_dict()
@@ -194,7 +194,7 @@ def main():
             # print('FFFFFFFF', layer_idx, )
         else:
             exit_module[0].load_state_dict(
-                model.model.layers[layer_idx-1].input_layernorm.state_dict()
+                model.model.layers[layer_idx].input_layernorm.state_dict()
             )
     
     

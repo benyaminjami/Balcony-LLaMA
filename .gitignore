@@ -171,10 +171,11 @@ cython_debug/
 !finetuning/
 
 # Un-ignore all files and subfolders inside the folder
-!finetuning/**
+!finetuning/*
 !src/**
 
 */__pycache__/*
 
 *.pyc
 wandb/
+checkpoints/
