@@ -28,7 +28,7 @@ from datasets import load_from_disk
 import torch
 import transformers
 from transformers import AutoConfig, AutoModelForCausalLM, set_seed, BitsAndBytesConfig
-from peft import AutoPeftModelForCausalLM, LoraConfig
+from peft import AutoPeftModelForCausalLM, LoraConfig, PeftModel
 from transformers_extra.models.nested_llama_wrapper.modeling_nested_llama_wrapper import LlamaEarlyExitWrapper, LlamaConfigWrapper
 from peft import PromptEmbedding, PromptTuningConfig, MultitaskPromptTuningConfig, TaskType, PrefixTuningConfig
 
@@ -47,15 +47,38 @@ from alignment import (
 )
 from trl import setup_chat_format, SFTTrainer
 from kd_trainer import KDTrainer
+from metatoken_learning import metatoken_save_pretrained
+
+from peft import get_peft_model, LoraConfig
 
 from train_config import SFTDistillConfig
 
 import torch.distributed as dist
 from datetime import timedelta
 # from aim.hugging_face import AimCallback
+# from transformers.data.data_collator import DataCollatorWithPadding, pad_without_fast_tokenizer_warning
+# from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
+# class MetaDataCollator(DataCollatorWithPadding):
+#     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
+#         batch = pad_without_fast_tokenizer_warning(
+#             self.tokenizer,
+#             features,
+#             padding=self.padding,
+#             max_length=self.max_length,
+#             pad_to_multiple_of=self.pad_to_multiple_of,
+#             return_tensors=self.return_tensors,
+#         )
+#         if "label" in batch:
+#             batch["labels"] = batch["label"]
+#             del batch["label"]
+#         if "label_ids" in batch:
+#             batch["labels"] = batch["label_ids"]
+#             del batch["label_ids"]
+#         return batch
+    
 def main():
     
     dist.init_process_group(backend='nccl', timeout=timedelta(seconds=360000))
@@ -100,7 +123,7 @@ def main():
     ###############
     # Load datasets
     ###############
-    if data_args.load_from_disk is None or not os.path.exists(data_args.load_from_disk):
+    if training_args.load_from_disk is None or not os.path.exists(training_args.load_from_disk):
         raw_datasets = get_datasets(
             data_args,
             splits=data_args.dataset_splits,
@@ -159,9 +182,9 @@ def main():
             logger.info(
                 f"Decontaminated {num_filtered_train_samples} ({num_filtered_train_samples/num_raw_train_samples * 100:.2f}%) samples from the training set."
             )
-        raw_datasets.save_to_disk(data_args.load_from_disk, num_shards={'train':64}, num_proc=64)
+        raw_datasets.save_to_disk(training_args.load_from_disk, num_shards={'train':64}, num_proc=64)
     else:
-        raw_datasets = datasets.load_from_disk(data_args.load_from_disk)
+        raw_datasets = datasets.load_from_disk(training_args.load_from_disk)
 
     # raw_datasets.save_to_disk("/ephemeral/parsa/datasets")
 
@@ -178,7 +201,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         tie_exit_lm_head=True,
-        output_exit_layers=[4, 8, 12],
+        output_exit_layers=[8],
         output_full_model=True,
         exit_layer_indices=[4, 8, 12],
         exit_decoder_layer=True,
@@ -205,17 +228,29 @@ def main():
             else:
                 param.requires_grad = False
     
-    # # config
+    # config
 
-    # pt_config = PromptTuningConfig(
-    #     peft_type="PROMPT_TUNING",
-    #     task_type="CAUSAL_LM",
-    #     num_virtual_tokens=20,
-    #     token_dim=model.config.hidden_size,
-    #     num_transformer_submodules=1,
-    #     num_attention_heads=model.config.num_attention_heads,
-    #     num_layers=model.config.num_hidden_layers,
-    # )
+    if training_args.meta_training:
+        PeftModel.save_pretrained = metatoken_save_pretrained
+
+        pt_config = PromptTuningConfig(
+            peft_type="PROMPT_TUNING",
+            task_type="CAUSAL_LM",
+            num_virtual_tokens=20,
+            token_dim=model.config.hidden_size,
+            num_transformer_submodules=1,
+            num_attention_heads=model.config.num_attention_heads,
+            num_layers=model.config.num_hidden_layers,
+        )
+
+        peft_model = get_peft_model(model, pt_config)
+
+        # Unfreeze parameters containing "exit_modules" in their name
+        for name, param in peft_model.named_parameters():
+            if "exit_modules" in name:
+                param.requires_grad = True
+                print(f"Unfroze parameter: {name}")
+
 
     # lora_config = LoraConfig(
     #     r=16,
@@ -246,11 +281,12 @@ def main():
 
     # setup the trainer
     trainer = KDTrainer(
-        model=model,
+        model=peft_model if training_args.meta_training else model,
         train_dataset=train_dataset.to_iterable_dataset(),
         # eval_dataset=eval_dataset.to_iterable_dataset(),
         args=training_args,
         # peft_config=pt_config,
+        # data_collator=MetaDataCollator(),
         tokenizer=tokenizer,
         # callbacks=[aim_callback],
         # dataset_kwargs=training_args.dataset_kwargs,

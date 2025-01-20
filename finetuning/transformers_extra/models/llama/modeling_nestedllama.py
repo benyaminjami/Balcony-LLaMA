@@ -720,7 +720,7 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
                     )[0]
                     exit_module_hidden_states = self.exit_modules[exit_index][1](exit_module_hidden_states)
                 else:
-                    exit_module_hidden_states = self.exit_modules[exit_index][0](exit_module_hidden_states)
+                    exit_module_hidden_states = self.exit_modules[exit_index][0](all_hidden_states[output_exit_layer])
 
                 last_hidden_states += (exit_module_hidden_states,)
         

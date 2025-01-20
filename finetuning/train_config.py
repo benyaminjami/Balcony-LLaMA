@@ -95,7 +95,15 @@ class SFTDistillConfig(SFTConfig):
         default=None,
         metadata={"help": "Freeze layers."},
     )
-
+    load_from_disk: str = field(
+        default=None,
+        metadata={"help": "load from disk flag."},
+    )
+    meta_training: bool = field(
+        default=False,
+        metadata={"help": "Training with metadata."},
+    )
+    
 # Copy from HuggingFace H4ArgumentParser
 class DistillArgumentParser(HfArgumentParser):
     def parse_yaml_and_args(self, yaml_arg: str, other_args: Optional[List[str]] = None) -> List[dataclass]:
