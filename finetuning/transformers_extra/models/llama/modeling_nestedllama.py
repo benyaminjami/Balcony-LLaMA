@@ -701,6 +701,9 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
+        if not self.config.output_full_model:
+            all_hidden_states += (hidden_states,)
+
         last_hidden_states = tuple()
         # NESTED
         if self.config.output_exit_layers is not None:
@@ -974,22 +977,26 @@ class NestedLlamaForCausalLM(NestedLlamaPreTrainedModel, GenerationMixin):
 
         last_hidden_states = outputs[0]
 
-        if self.config.output_full_model:
+        assert self.config.output_exit_layers is not None or self.config.output_full_model
+
+        if self.config.output_full_model and self.config.output_exit_layers is not None:
             assert len(last_hidden_states) == len(self.config.output_exit_layers) + 1
-        else:
+        elif self.config.output_full_model and self.config.output_exit_layers is None:
+            assert len(last_hidden_states) == 1
+        elif self.config.output_exit_layers is not None:
             assert len(last_hidden_states) == len(self.config.output_exit_layers)
         
-        
         exit_logtis = tuple()
-        for i, output_exit_layer in enumerate(self.config.output_exit_layers):
-            hidden_states = last_hidden_states[i]
-            if not self.config.tie_exit_lm_head:
-                exit_index = self.config.exit_layer_indices.index(output_exit_layer)
-                lm_head = self.model.exit_modules[exit_index][-1]
-            else:
-                lm_head = self.lm_head
-            logits = lm_head(hidden_states)
-            exit_logtis += (logits,)
+        if self.config.output_exit_layers is not None:
+            for i, output_exit_layer in enumerate(self.config.output_exit_layers):
+                hidden_states = last_hidden_states[i]
+                if not self.config.tie_exit_lm_head:
+                    exit_index = self.config.exit_layer_indices.index(output_exit_layer)
+                    lm_head = self.model.exit_modules[exit_index][-1]
+                else:
+                    lm_head = self.lm_head
+                logits = lm_head(hidden_states)
+                exit_logtis += (logits,)
         
         
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss

@@ -200,11 +200,11 @@ def main():
 
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
-        tie_exit_lm_head=True,
-        output_exit_layers=[8],
-        output_full_model=True,
-        exit_layer_indices=[4, 8, 12],
-        exit_decoder_layer=True,
+        tie_exit_lm_head=training_args.tie_exit_lm_head,
+        output_exit_layers=training_args.output_exit_layers,
+        output_full_model=training_args.output_full_model,
+        exit_layer_indices=training_args.exit_layer_indices,
+        exit_decoder_layer=training_args.exit_decoder_layer,
     )
     
     for i, exit_module in enumerate(model.model.exit_modules):
@@ -231,19 +231,30 @@ def main():
     # config
 
     if training_args.meta_training:
+        assert training_args.adapter_type in ['prompt', 'prefix', 'lora'], "adapter_type should be in ['prompt', 'prefix', 'lora']!!!"
         PeftModel.save_pretrained = metatoken_save_pretrained
 
-        pt_config = PromptTuningConfig(
-            peft_type="PROMPT_TUNING",
-            task_type="CAUSAL_LM",
-            num_virtual_tokens=20,
-            token_dim=model.config.hidden_size,
-            num_transformer_submodules=1,
-            num_attention_heads=model.config.num_attention_heads,
-            num_layers=model.config.num_hidden_layers,
-        )
-
-        peft_model = get_peft_model(model, pt_config)
+        if training_args.adapter_type == 'prompt':
+            peft_config = PromptTuningConfig(
+                peft_type="PROMPT_TUNING",
+                task_type="CAUSAL_LM",
+                num_virtual_tokens=100,
+                token_dim=model.config.hidden_size,
+                num_transformer_submodules=1,
+                num_attention_heads=model.config.num_attention_heads,
+                num_layers=model.config.num_hidden_layers,
+            )
+        elif training_args.adapter_type == 'prefix':
+            peft_config = PrefixTuningConfig(
+                peft_type="PREFIX_TUNING",
+                task_type="CAUSAL_LM",
+                num_virtual_tokens=50,
+                token_dim=model.config.hidden_size,
+                num_transformer_submodules=1,
+                num_attention_heads=model.config.num_attention_heads,
+                num_layers=training_args.output_exit_layers[0],
+            )
+        peft_model = get_peft_model(model, peft_config)
 
         # Unfreeze parameters containing "exit_modules" in their name
         for name, param in peft_model.named_parameters():

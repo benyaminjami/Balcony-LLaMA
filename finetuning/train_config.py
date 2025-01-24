@@ -103,6 +103,30 @@ class SFTDistillConfig(SFTConfig):
         default=False,
         metadata={"help": "Training with metadata."},
     )
+    tie_exit_lm_head: bool = field(
+        default=False,
+        metadata={"help": "Training with tied lm head."},
+    )    
+    output_full_model: bool = field(
+        default=False,
+        metadata={"help": "Getting the full model output."},
+    )
+    exit_decoder_layer: bool = field(
+        default=False,
+        metadata={"help": "Training with decoder layer in balcony modules."},
+    )
+    adapter_type: str = field(
+        default=None,
+        metadata={"help": "Select the adapter among ['prompt', 'prefix', 'lora']"},
+    )
+    output_exit_layers: List[int] = field(
+        default=None,
+        metadata={"help": "output_exit_layers."},
+    )
+    exit_layer_indices: List[int] = field(
+        default=None,
+        metadata={"help": "exit_layer_indices."},
+    )
     
 # Copy from HuggingFace H4ArgumentParser
 class DistillArgumentParser(HfArgumentParser):

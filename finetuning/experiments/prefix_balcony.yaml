@@ -30,7 +30,7 @@ lr_scheduler_type: cosine
 max_seq_length: 2048
 max_steps: 30000
 num_train_epochs: 1
-output_dir: /work/parsa/checkpoints/Smollm_1B_meta_balcony_layer12_numvittokens100
+output_dir: /work/parsa/checkpoints/Smollm_1B_prefix_balcony_layer12_numvirtokens50
 overwrite_output_dir: true
 # per_device_eval_batch_size: 4bash 
 per_device_train_batch_size: 8
@@ -56,6 +56,6 @@ output_full_model: false
 exit_layer_indices: 
   - 12
 exit_decoder_layer: true
-adapter_type: 'prompt' #['prompt', 'prefix', 'lora']
+adapter_type: 'prefix' #['prompt', 'prefix', 'lora']
 unfreeze_layers:
   - "exit_modules" # TODO: check if this is the right layer to unfreeze and if it works as expected

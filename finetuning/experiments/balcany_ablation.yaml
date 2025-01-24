@@ -18,10 +18,10 @@ load_from_disk: /work/benyamin/datasets/hf_cosmo/
 bf16: true
 do_eval: false
 # evaluation_strategy: epoch
-gradient_accumulation_steps: 4
-gradient_checkpointing: false
-# gradient_checkpointing_kwargs:
-#   use_reentrant: true
+gradient_accumulation_steps: 16
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: true
 learning_rate: 5.0e-04
 log_level: info
 logging_steps: 10
@@ -30,10 +30,10 @@ lr_scheduler_type: cosine
 max_seq_length: 2048
 max_steps: 30000
 num_train_epochs: 1
-output_dir: /work/parsa/checkpoints/Smollm_1B_meta_balcony_layer12_numvittokens100
+output_dir: /work/parsa/checkpoints/Smollm_1B_balcany_ablation
 overwrite_output_dir: true
-# per_device_eval_batch_size: 4bash 
-per_device_train_batch_size: 8
+# per_device_eval_batch_size: 4
+per_device_train_batch_size: 2
 push_to_hub: false
 remove_unused_columns: true
 packing: true
@@ -48,14 +48,6 @@ kl_weight: 1.0
 ce_weight: 0.0
 
 freeze_model: true
-meta_training: true
-tie_exit_lm_head: true
-output_exit_layers:
-  - 12
-output_full_model: false
-exit_layer_indices: 
-  - 12
-exit_decoder_layer: true
-adapter_type: 'prompt' #['prompt', 'prefix', 'lora']
+meta_training: false
 unfreeze_layers:
   - "exit_modules" # TODO: check if this is the right layer to unfreeze and if it works as expected

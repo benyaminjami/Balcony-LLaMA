@@ -1,0 +1,50 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Accelerate Training",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "accelerate.commands.launch",
+            "args": [
+                "--multi_gpu",
+                "--config_file",
+                "${workspaceFolder}/finetuning/ddp.yaml",
+                "${workspaceFolder}/finetuning/train.py",
+                "${workspaceFolder}/finetuning/experiments/prefix_balcony.yaml"
+            ],
+            "env": {
+                "ACCELERATE_LOG_LEVEL": "info"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "python": "${command:python.interpreterPath}",
+            "preLaunchTask": "",
+            "postDebugTask": ""
+        },
+        {
+            "name": "Launch Test Script",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/finetuning/test.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python Debugger: Current File with Arguments", 
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        }
+    ]
+}
