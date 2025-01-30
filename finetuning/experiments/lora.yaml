@@ -22,7 +22,7 @@ gradient_accumulation_steps: 4
 gradient_checkpointing: false
 # gradient_checkpointing_kwargs:
 #   use_reentrant: true
-learning_rate: 5.0e-04
+learning_rate: 5.0e-05
 log_level: info
 logging_steps: 10
 logging_strategy: steps
@@ -30,15 +30,15 @@ lr_scheduler_type: cosine
 max_seq_length: 2048
 max_steps: 30000
 num_train_epochs: 1
-output_dir: /work/parsa/checkpoints/Smollm_1B_balcony_randomInit
+output_dir: /work/parsa/checkpoints/Smollm_1B_lora_balcony_layer12_r8
 overwrite_output_dir: true
-# per_device_eval_batch_size: 4
+# per_device_eval_batch_size: 4bash 
 per_device_train_batch_size: 8
 push_to_hub: false
 remove_unused_columns: true
 packing: true
 report_to:
-- wandb
+- none
 save_strategy: "steps"
 save_steps: 2000
 save_total_limit: 10
@@ -47,18 +47,15 @@ warmup_ratio: 0.01
 kl_weight: 1.0
 ce_weight: 0.0
 
-random_balcony_initialization: true
 freeze_model: true
+meta_training: true
 tie_exit_lm_head: true
 output_exit_layers:
-  - 4
-  - 8
   - 12
-output_full_model: true
+output_full_model: false
 exit_layer_indices: 
-  - 4
-  - 8
   - 12
-exit_decoder_layer: true
+exit_decoder_layer: false
+adapter_type: 'lora' #['prompt', 'prefix', 'lora']
 unfreeze_layers:
   - "exit_modules" # TODO: check if this is the right layer to unfreeze and if it works as expected

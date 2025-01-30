@@ -115,6 +115,10 @@ class SFTDistillConfig(SFTConfig):
         default=False,
         metadata={"help": "Training with decoder layer in balcony modules."},
     )
+    exit_mlp: bool = field(
+        default=False,
+        metadata={"help": "Training with mlp layer in balcony modules."},
+    )
     adapter_type: str = field(
         default=None,
         metadata={"help": "Select the adapter among ['prompt', 'prefix', 'lora']"},
@@ -127,6 +131,11 @@ class SFTDistillConfig(SFTConfig):
         default=None,
         metadata={"help": "exit_layer_indices."},
     )
+    random_balcony_initialization: bool = field(
+        default=False,
+        metadata={"help": "Initialize balcony weights randomly."},
+    )
+    
     
 # Copy from HuggingFace H4ArgumentParser
 class DistillArgumentParser(HfArgumentParser):

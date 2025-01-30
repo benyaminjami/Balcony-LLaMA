@@ -59,7 +59,6 @@ class KDTrainer(SFTTrainer):
             outputs.losses = outputs.losses[:-1]
 
         if self.args.meta_training:
-            num_virtual_tokens = model.module.peft_config['default'].num_virtual_tokens
             assert not model.module.config.output_full_model, "Meta Token Training Requires output_full_model = False!"
             assert model.module.config.output_exit_layers is not None, "Meta Token Training Requires output_exit_layers not None!"
 
@@ -85,7 +84,7 @@ class KDTrainer(SFTTrainer):
             teacher_logits = teacher_outputs.logits
             teacher_logits = teacher_logits[-1].detach()
             self.additional_state.add_metrics(**{f'ce_loss_{model_config.num_hidden_layers}': teacher_outputs.losses[-1]})
-
+        
         for i, loss in enumerate(outputs.losses):
             self.additional_state.add_metrics(**{f'ce_loss_{model_config.output_exit_layers[i]}': loss})
             
@@ -94,7 +93,8 @@ class KDTrainer(SFTTrainer):
             # assert model.module.model.config.output_full_model, "KL loss requires full model output"
             kl_losses = []
             for i, lg in enumerate(logits):
-                if self.args.adapter_type == 'prompt':
+                if self.args.meta_training and self.args.adapter_type == 'prompt':
+                    num_virtual_tokens = model.module.peft_config['default'].num_virtual_tokens
                     lg = lg[:, num_virtual_tokens:, :]
                 kl_loss = F.kl_div(F.log_softmax(lg, dim=-1), F.softmax(teacher_logits, dim=-1), reduction='batchmean')
                 kl_losses.append(kl_loss)

@@ -14,5 +14,5 @@
 # CONFIG_FILE=$1
 export WANDB_API_KEY="44735889af01972b7a789b2a6b9d6f95ca6b9615"
 export WANDB_PROJECT="Nested_FT"
-CUDA_VISIBLE_DEVICES=4,5,6,7 ACCELERATE_LOG_LEVEL=info accelerate launch --main_process_port 30000 --config_file /home/parsa/projects/Nested-Llama/finetuning/ddp.yaml \
-    train.py experiments/meta_balcony.yaml > /home/parsa/projects/Nested-Llama/finetuning/logs/meta_balcony_layer12_numvirtokens100.log 2>&1 &
+CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info accelerate launch --main_process_port 29000 --config_file /home/parsa/projects/Nested-Llama/finetuning/ddp.yaml \
+    train.py experiments/balcony_mlp.yaml > /home/parsa/projects/Nested-Llama/finetuning/logs/balcony_mlp.log 2>&1 &

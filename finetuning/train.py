@@ -207,18 +207,20 @@ def main():
         exit_decoder_layer=training_args.exit_decoder_layer,
     )
     
-    for i, exit_module in enumerate(model.model.exit_modules):
-        layer_idx = model.config.exit_layer_indices[i]
-        if model.config.exit_decoder_layer:
-            exit_module[0].load_state_dict(model.model.layers[-1].state_dict())
-            exit_module[1].load_state_dict(
-                model.model.layers[layer_idx].input_layernorm.state_dict()
-            )
-            # print('FFFFFFFF', layer_idx, )
-        else:
-            exit_module[0].load_state_dict(
-                model.model.layers[layer_idx].input_layernorm.state_dict()
-            )
+    # Initilize balcony weights
+    if not training_args.random_balcony_initialization:
+        for i, exit_module in enumerate(model.model.exit_modules):
+            layer_idx = model.config.exit_layer_indices[i]
+            if model.config.exit_decoder_layer or model.config.exit_mlp:
+                exit_module[0].load_state_dict(model.model.layers[-1].state_dict())
+                exit_module[1].load_state_dict(
+                    model.model.layers[layer_idx].input_layernorm.state_dict()
+                )
+                # print('FFFFFFFF', layer_idx, )
+            else:
+                exit_module[0].load_state_dict(
+                    model.model.layers[layer_idx].input_layernorm.state_dict()
+                )
     
     
     if training_args.freeze_model:
@@ -248,11 +250,21 @@ def main():
             peft_config = PrefixTuningConfig(
                 peft_type="PREFIX_TUNING",
                 task_type="CAUSAL_LM",
-                num_virtual_tokens=50,
+                num_virtual_tokens=1,
                 token_dim=model.config.hidden_size,
                 num_transformer_submodules=1,
                 num_attention_heads=model.config.num_attention_heads,
                 num_layers=training_args.output_exit_layers[0],
+            )
+        elif training_args.adapter_type == 'lora':
+            peft_config = LoraConfig(
+                peft_type="LoRA_TUNING",
+                task_type="CAUSAL_LM",  # Type of task (e.g., CAUSAL_LM, SEQ_CLS, TOKEN_CLS)
+                inference_mode=False,          # Set to True if you're using the model for inference
+                r=8,                           # Rank of the LoRA adaptation matrix
+                lora_alpha=32,                 # Scaling factor for LoRA
+                lora_dropout=0.1,              # Dropout rate for LoRA
+                target_modules=["q_proj", "v_proj"],  # Target modules to apply LoRA (example for LLaMA)
             )
         peft_model = get_peft_model(model, peft_config)
 

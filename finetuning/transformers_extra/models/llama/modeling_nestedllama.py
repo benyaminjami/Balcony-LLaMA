@@ -587,6 +587,7 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
             nn.ModuleList(
                 [module for module in [
                     NestedLlamaDecoderLayer(config, config.num_hidden_layers+i) if config.exit_decoder_layer else None,
+                    NestedLlamaMLP(config) if config.exit_mlp else None,
                     NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps),
                     nn.Linear(config.hidden_size, config.vocab_size, bias=False) if not config.tie_exit_lm_head else None,
                 ] if module is not None  # Filter out None modules

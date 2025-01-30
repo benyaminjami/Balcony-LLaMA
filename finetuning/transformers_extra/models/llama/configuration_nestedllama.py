@@ -181,6 +181,7 @@ class NestedLlamaConfig(PretrainedConfig):
         output_full_model=True,
         exit_layer_indices=None,
         exit_decoder_layer=False,
+        exit_mlp=False,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -217,6 +218,7 @@ class NestedLlamaConfig(PretrainedConfig):
         self.exit_decoder_layer = exit_decoder_layer
         self.output_full_model = output_full_model
         self.output_exit_layers = output_exit_layers
+        self.exit_mlp = exit_mlp
         
         super().__init__(
             pad_token_id=pad_token_id,
