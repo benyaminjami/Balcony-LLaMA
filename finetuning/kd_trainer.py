@@ -26,7 +26,7 @@ class KDTrainer(SFTTrainer):
 
     def __init__(
         self,
-        # teacher_model: Union[PreTrainedModel, nn.Module, str],
+        teacher_model: Union[PreTrainedModel, nn.Module, str] = None,
         args: Optional[SFTDistillConfig] = None,
         *sft_args,
         **kwargs,
@@ -36,6 +36,13 @@ class KDTrainer(SFTTrainer):
 
         self.kl_weight = args.kl_weight
         self.ce_weight = args.ce_weight
+        self.teacher_model = None
+        if teacher_model is not None:
+            self.teacher_model = (
+                self.accelerator.prepare(teacher_model)
+                if self.is_deepspeed_enabled or (self.is_fsdp_enabled and self.accelerator.mixed_precision != "fp8")
+                else self.accelerator.prepare_model(teacher_model, evaluation_mode=True)
+            )
 
     def compute_loss(self, model, inputs, return_outputs=False):
         # compute teacher output in eval mode
@@ -69,12 +76,22 @@ class KDTrainer(SFTTrainer):
             model.module.base_model.model.num_forward_layers = model.module.config.num_hidden_layers
             
             with torch.no_grad():
-                teacher_outputs = model.module.base_model(
-                    input_ids=inputs["input_ids"],
-                    attention_mask=inputs["attention_mask"],
-                    labels=inputs["labels"],
-                    return_dict=True
-                )
+                if self.teacher_model is None:
+                    with model.module.disable_adapter():
+                        teacher_outputs = model(
+                            input_ids=inputs["input_ids"],
+                            attention_mask=inputs["attention_mask"],
+                            labels=inputs["labels"],
+                            return_dict=True
+                        )
+                else:
+                    teacher_outputs = self.teacher_model(
+                            input_ids=inputs["input_ids"],
+                            attention_mask=inputs["attention_mask"],
+                            labels=inputs["labels"],
+                            return_dict=True
+                        )
+                # model.module.enable_adapters()
             
             # Reverse model configs
             model.module.config.output_full_model = False

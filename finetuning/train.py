@@ -259,15 +259,27 @@ def main():
         elif training_args.adapter_type == 'lora':
             peft_config = LoraConfig(
                 peft_type="LoRA_TUNING",
+                layers_to_transform=None,
+                layers_pattern=None,
                 task_type="CAUSAL_LM",  # Type of task (e.g., CAUSAL_LM, SEQ_CLS, TOKEN_CLS)
                 inference_mode=False,          # Set to True if you're using the model for inference
+                bias="none",
                 r=8,                           # Rank of the LoRA adaptation matrix
                 lora_alpha=32,                 # Scaling factor for LoRA
                 lora_dropout=0.1,              # Dropout rate for LoRA
                 target_modules=["q_proj", "v_proj"],  # Target modules to apply LoRA (example for LLaMA)
             )
+            
         peft_model = get_peft_model(model, peft_config)
 
+        if training_args.adapter_type == 'lora':
+            teacher_model = AutoModelForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                output_exit_layers=[],
+                output_full_model=True,
+                exit_layer_indices=[],
+            )
+        
         # Unfreeze parameters containing "exit_modules" in their name
         for name, param in peft_model.named_parameters():
             if "exit_modules" in name:
@@ -306,6 +318,7 @@ def main():
     trainer = KDTrainer(
         model=peft_model if training_args.meta_training else model,
         train_dataset=train_dataset.to_iterable_dataset(),
+        teacher_model=teacher_model if training_args.meta_training and training_args.adapter_type == 'lora' else None,
         # eval_dataset=eval_dataset.to_iterable_dataset(),
         args=training_args,
         # peft_config=pt_config,
