@@ -311,15 +311,17 @@ class NestedLlamaAttention(nn.Module):
 
 
 class NestedLlamaDecoderLayer(nn.Module):
-    def __init__(self, config: NestedLlamaConfig, layer_idx: int):
+    def __init__(self, config: NestedLlamaConfig, layer_idx: int, has_attention: bool = True, has_mlp: bool = True):
         super().__init__()
+        self.has_attention = has_attention
+        self.has_mlp = has_mlp
         self.hidden_size = config.hidden_size
 
-        self.self_attn = NestedLlamaAttention(config=config, layer_idx=layer_idx)
+        self.self_attn = NestedLlamaAttention(config=config, layer_idx=layer_idx) if has_attention else None
 
-        self.mlp = NestedLlamaMLP(config)
+        self.mlp = NestedLlamaMLP(config) if has_mlp else None
         self.input_layernorm = NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps) if has_attention else None
 
     def forward(
         self,
@@ -338,23 +340,26 @@ class NestedLlamaDecoderLayer(nn.Module):
         hidden_states = self.input_layernorm(hidden_states)
 
         # Self Attention
-        hidden_states, self_attn_weights = self.self_attn(
-            hidden_states=hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_value=past_key_value,
-            output_attentions=output_attentions,
-            use_cache=use_cache,
-            cache_position=cache_position,
-            position_embeddings=position_embeddings,
-            **kwargs,
-        )
-        hidden_states = residual + hidden_states
+        if self.has_attention:
+            hidden_states, self_attn_weights = self.self_attn(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_value=past_key_value,
+                output_attentions=output_attentions,
+                use_cache=use_cache,
+                cache_position=cache_position,
+                position_embeddings=position_embeddings,
+                **kwargs,
+            )
+            hidden_states = residual + hidden_states
 
         # Fully Connected
         residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
+        if self.has_attention:
+            hidden_states = self.post_attention_layernorm(hidden_states)
+        if self.has_mlp:
+            hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -579,15 +584,14 @@ class NestedLlamaModel(NestedLlamaPreTrainedModel):
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList(
-            [NestedLlamaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
+            [NestedLlamaDecoderLayer(config, layer_idx, True, True) for layer_idx in range(config.num_hidden_layers)]
         )
         
         # NESTED
         self.exit_modules = nn.ModuleList([
             nn.ModuleList(
                 [module for module in [
-                    NestedLlamaDecoderLayer(config, config.num_hidden_layers+i) if config.exit_decoder_layer else None,
-                    NestedLlamaMLP(config) if config.exit_mlp else None,
+                    NestedLlamaDecoderLayer(config, config.num_hidden_layers+i, not config.exit_mlp, not config.exit_attention) if config.exit_decoder_layer else None,
                     NestedLlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps),
                     nn.Linear(config.hidden_size, config.vocab_size, bias=False) if not config.tie_exit_lm_head else None,
                 ] if module is not None  # Filter out None modules

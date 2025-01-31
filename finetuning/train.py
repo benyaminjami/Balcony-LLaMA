@@ -205,18 +205,19 @@ def main():
         output_full_model=training_args.output_full_model,
         exit_layer_indices=training_args.exit_layer_indices,
         exit_decoder_layer=training_args.exit_decoder_layer,
+        exit_mlp=training_args.exit_mlp,
+        exit_attention=training_args.exit_attention,
     )
     
     # Initilize balcony weights
     if not training_args.random_balcony_initialization:
         for i, exit_module in enumerate(model.model.exit_modules):
             layer_idx = model.config.exit_layer_indices[i]
-            if model.config.exit_decoder_layer or model.config.exit_mlp:
+            if model.config.exit_decoder_layer:
                 exit_module[0].load_state_dict(model.model.layers[-1].state_dict())
                 exit_module[1].load_state_dict(
                     model.model.layers[layer_idx].input_layernorm.state_dict()
                 )
-                # print('FFFFFFFF', layer_idx, )
             else:
                 exit_module[0].load_state_dict(
                     model.model.layers[layer_idx].input_layernorm.state_dict()

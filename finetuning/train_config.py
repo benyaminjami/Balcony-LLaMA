@@ -119,6 +119,10 @@ class SFTDistillConfig(SFTConfig):
         default=False,
         metadata={"help": "Training with mlp layer in balcony modules."},
     )
+    exit_attention: bool = field(
+        default=False,
+        metadata={"help": "Training with attention module in balcony modules."},
+    )
     adapter_type: str = field(
         default=None,
         metadata={"help": "Select the adapter among ['prompt', 'prefix', 'lora']"},

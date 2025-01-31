@@ -30,7 +30,7 @@ lr_scheduler_type: cosine
 max_seq_length: 2048
 max_steps: 30000
 num_train_epochs: 1
-output_dir: /work/parsa/checkpoints/Smollm_1B_balcony_mlp_randInit
+output_dir: /work/parsa/checkpoints/Smollm_1B_balcony_attention_randInit
 overwrite_output_dir: true
 # per_device_eval_batch_size: 4
 per_device_train_batch_size: 8
@@ -60,6 +60,6 @@ exit_layer_indices:
   - 8
   - 12
 exit_decoder_layer: true
-exit_mlp: true
+exit_attention: true
 unfreeze_layers:
   - "exit_modules" # TODO: check if this is the right layer to unfreeze and if it works as expected
