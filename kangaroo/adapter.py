@@ -260,12 +260,15 @@ class LlamaRMSNorm(nn.Module):
 
 
 class LlamaDecoderLayer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, balcony=True):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = LlamaAttention(config=config)
         self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-
+        self.balcony = balcony
+        if balcony:
+            self.mlp = LlamaMLP(config)
+            self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -301,7 +304,14 @@ class LlamaDecoderLayer(nn.Module):
             use_cache=use_cache,
         )
         hidden_states = residual + hidden_states
-
+        
+        if self.balcony:
+            # Fully Connected
+            residual = hidden_states
+            hidden_states = self.post_attention_layernorm(hidden_states)
+            hidden_states = self.mlp(hidden_states)
+            hidden_states = residual + hidden_states
+        
         outputs = (hidden_states,)
 
         if output_attentions:
@@ -314,14 +324,14 @@ class LlamaDecoderLayer(nn.Module):
 
 
 class AdapterModel(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, balcony=True):
         super().__init__()
         self.gradient_checkpointing = True
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.layers = nn.ModuleList([LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([LlamaDecoderLayer(config, balcony=balcony) for _ in range(config.num_hidden_layers)])
         
     def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
         # create causal mask
@@ -451,7 +461,7 @@ class AdapterModel(nn.Module):
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[2 if output_attentions else 1],)
-        
+        # print(self.norm.weight.dtype)
         hidden_states = self.norm(hidden_states)
         if use_cache:
             return hidden_states, next_decoder_cache

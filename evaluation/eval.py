@@ -104,49 +104,49 @@ def get_model_answers(
             prompt = conv.get_prompt()
             inputs = tokenizer([prompt], return_tensors="pt").to("cuda")
             input_ids = inputs.input_ids
-            try:
-                torch.cuda.synchronize()
-                start_time = time.time()
-                output_ids, new_token, idx, accept_length_tree = forward_func(
-                    inputs,
-                    model,
-                    tokenizer,
-                    max_new_tokens,
-                    **kwargs,
-                )
-                torch.cuda.synchronize()
-                total_time = time.time() - start_time
-                output_ids = output_ids[0][len(input_ids[0]):]
-                # be consistent with the template's stop_token_ids
-                if conv.stop_token_ids:
-                    stop_token_ids_index = [
-                        i
-                        for i, id in enumerate(output_ids)
-                        if id in conv.stop_token_ids
-                    ]
-                    if len(stop_token_ids_index) > 0:
-                        output_ids = output_ids[: stop_token_ids_index[0]]
+            # try:
+            torch.cuda.synchronize()
+            start_time = time.time()
+            output_ids, new_token, idx, accept_length_tree, rejected_length_tree = forward_func(
+                inputs,
+                model,
+                tokenizer,
+                max_new_tokens,
+                **kwargs,
+            )
+            torch.cuda.synchronize()
+            total_time = time.time() - start_time
+            output_ids = output_ids[0][len(input_ids[0]):]
+            # be consistent with the template's stop_token_ids
+            if conv.stop_token_ids:
+                stop_token_ids_index = [
+                    i
+                    for i, id in enumerate(output_ids)
+                    if id in conv.stop_token_ids
+                ]
+                if len(stop_token_ids_index) > 0:
+                    output_ids = output_ids[: stop_token_ids_index[0]]
 
-                output = tokenizer.decode(
-                    output_ids,
-                    spaces_between_special_tokens=False,
-                )
-                # conv.stop_str = "</s>"
-                if conv.stop_str and output.find(conv.stop_str) > 0:
-                    output = output[: output.find(conv.stop_str)]
-                for special_token in tokenizer.special_tokens_map.values():
-                    if isinstance(special_token, list):
-                        for special_tok in special_token:
-                            output = output.replace(special_tok, "")
-                    else:
-                        output = output.replace(special_token, "")
-                output = output.strip()
+            output = tokenizer.decode(
+                output_ids,
+                spaces_between_special_tokens=False,
+            )
+            # conv.stop_str = "</s>"
+            if conv.stop_str and output.find(conv.stop_str) > 0:
+                output = output[: output.find(conv.stop_str)]
+            for special_token in tokenizer.special_tokens_map.values():
+                if isinstance(special_token, list):
+                    for special_tok in special_token:
+                        output = output.replace(special_tok, "")
+                else:
+                    output = output.replace(special_token, "")
+            output = output.strip()
 
-                if conv.name == "xgen" and output.startswith("Assistant:"):
-                    output = output.replace("Assistant:", "", 1).strip()
-            except RuntimeError as e:
-                print("ERROR question ID: ", question["question_id"])
-                output = "ERROR"
+            if conv.name == "xgen" and output.startswith("Assistant:"):
+                output = output.replace("Assistant:", "", 1).strip()
+            # except RuntimeError as e:
+            #     print("ERROR question ID: ", question["question_id"])
+            #     output = "ERROR"
 
             turns.append(output)
             idxs.append(int(idx))
@@ -156,11 +156,13 @@ def get_model_answers(
     print('Warmup done')
 
     accept_lengths_tree = []
+    rejected_lengths_tree = []
     for question in tqdm(questions):
 
         choices = []
         for i in range(num_choices):
             cur_accept_lengths_tree = []
+            cur_reject_lengths_tree = []
             torch.manual_seed(i)
             conv = get_conversation_template("vicuna")
             turns = []
@@ -177,7 +179,7 @@ def get_model_answers(
                 try:
                     torch.cuda.synchronize()
                     start_time = time.time()
-                    output_ids, new_token, idx, accept_length_tree = forward_func(
+                    output_ids, new_token, idx, accept_length_tree, rejected_length_tree = forward_func(
                         inputs,
                         model,
                         tokenizer,
@@ -187,6 +189,7 @@ def get_model_answers(
                     torch.cuda.synchronize()
                     total_time = time.time() - start_time
                     accept_lengths_tree.extend(accept_length_tree)
+                    rejected_lengths_tree.extend(rejected_length_tree)
                     output_ids = output_ids[0][len(input_ids[0]):]
 
                     if conv.stop_token_ids:
@@ -223,10 +226,11 @@ def get_model_answers(
                 new_tokens.append(int(new_token))
                 wall_time.append(total_time)
                 cur_accept_lengths_tree.extend(accept_length_tree)
+                cur_reject_lengths_tree.extend(rejected_length_tree)
                 conv.messages[-1][-1] = output
             # torch.cuda.empty_cache()
             choices.append({"index": i, "turns": turns, "idxs": idxs, "new_tokens": new_tokens, "wall_time": wall_time,
-                            "accept_lengths": cur_accept_lengths_tree})
+                            "accept_lengths": cur_accept_lengths_tree, "reject_lengths": cur_reject_lengths_tree})
 
         # Dump answers
         os.makedirs(os.path.dirname(answer_file), exist_ok=True)

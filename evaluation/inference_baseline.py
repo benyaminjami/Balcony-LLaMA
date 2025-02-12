@@ -9,7 +9,8 @@ from fastchat.utils import str_to_torch_dtype
 
 from evaluation.eval import run_eval, reorg_answer_file
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import LlamaForCausalLM as AutoModelForCausalLM
+from transformers import AutoTokenizer
 
 def baseline_forward(inputs, model, tokenizer, max_new_tokens, temperature=0.0, do_sample=False):
     input_ids = inputs.input_ids
@@ -22,7 +23,8 @@ def baseline_forward(inputs, model, tokenizer, max_new_tokens, temperature=0.0, 
     new_token = len(output_ids[0][len(input_ids[0]):])
     idx = new_token - 1
     accept_length_list = [1] * new_token
-    return output_ids, new_token, idx, accept_length_list
+    rejected_length_list = [0] * new_token
+    return output_ids, new_token, idx, accept_length_list, rejected_length_list
 
 
 if __name__ == "__main__":
@@ -97,7 +99,7 @@ if __name__ == "__main__":
         device_map="auto"
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    tokenizer = AutoTokenizer.from_pretrained('HuggingFaceTB/cosmo2-tokenizer')
 
     if args.temperature > 0:
         do_sample = True

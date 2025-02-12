@@ -1,7 +1,7 @@
 import torch
 from typing import List, Optional, Tuple, Union
 from transformers.models.llama import LlamaForCausalLM
-
+from kangaroo.adapter import _expand_mask, _make_causal_mask
 
 class EarlyExitLlamaForCausalLM(LlamaForCausalLM):
     def __init__(self, config, EARLY_STOP_LAYER):
@@ -9,6 +9,30 @@ class EarlyExitLlamaForCausalLM(LlamaForCausalLM):
 
         self.past_key_values = None
         self.early_exit_layer = EARLY_STOP_LAYER
+
+# Copied from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
+    def _prepare_decoder_attention_mask(self, attention_mask, input_shape, inputs_embeds, past_key_values_length):
+        # create causal mask
+        # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        combined_attention_mask = None
+        if input_shape[-1] > 1:
+            combined_attention_mask = _make_causal_mask(
+                input_shape,
+                inputs_embeds.dtype,
+                device=inputs_embeds.device,
+                past_key_values_length=past_key_values_length,
+            )
+
+        if attention_mask is not None:
+            # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
+                inputs_embeds.device
+            )
+            combined_attention_mask = (
+                expanded_attn_mask if combined_attention_mask is None else expanded_attn_mask + combined_attention_mask
+            )
+
+        return combined_attention_mask
 
     @torch.no_grad()
     def forward_draft_or_large_model(self, in_tokens_small=None, in_features_large=None, position_ids=None):
@@ -44,7 +68,7 @@ class EarlyExitLlamaForCausalLM(LlamaForCausalLM):
         attention_mask = torch.ones(
             (batch_size, seq_length_with_past), dtype=torch.bool, device=inputs_embeds.device if in_tokens_small is not None else in_features_large.device
         )
-        attention_mask = self.model._prepare_decoder_attention_mask(
+        attention_mask = self._prepare_decoder_attention_mask(
             attention_mask, (batch_size, seq_length), inputs_embeds if in_tokens_small is not None else in_features_large, past_key_values_length
         )
 

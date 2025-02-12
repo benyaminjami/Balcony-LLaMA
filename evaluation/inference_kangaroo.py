@@ -20,6 +20,7 @@ def kangaroo_forward(inputs, model, tokenizer, max_new_tokens, do_sample=False, 
     global_tokens = torch.ones((batch_size, max_length), dtype=torch.long, device=device) * token_eos
     global_position_ids = torch.LongTensor([[i for i in range(max_length)]]).to(device)
     accept_length_list = [1]
+    rejected_length_list = [0]
 
     start_index = context_length
     global_tokens[:, :start_index] = context_tokens
@@ -76,6 +77,8 @@ def kangaroo_forward(inputs, model, tokenizer, max_new_tokens, do_sample=False, 
 
                 hidden_state, adapter_past_key_values = model.adapter_model.forward_early_stop(inputs_embeds=hidden_state_early, position_ids=position_ids, past_key_values=adapter_past_key_values, use_cache=True)
 
+                # print(hidden_state[:,-1:,:].dtype)
+                # print(model.head_model.weight.dtype)
                 predict_logits = model.head_model(hidden_state[:,-1:,:]).float() 
                 global_tokens[:, end_index] = torch.argmax(predict_logits[:, -1, :], dim=-1)
                 
@@ -102,6 +105,7 @@ def kangaroo_forward(inputs, model, tokenizer, max_new_tokens, do_sample=False, 
                     break
 
             accept_length_list.append(start_index - start_index_copy)
+            rejected_length_list.append(output_lenght - (start_index - start_index_copy))
             hidden_state = hidden_state[:, :output_lenght-(end_index-start_index), :]
 
             # STEP 4: Post process KV-cache
@@ -126,7 +130,7 @@ def kangaroo_forward(inputs, model, tokenizer, max_new_tokens, do_sample=False, 
     output_ids = global_tokens[0, :start_index+1].tolist()
     new_token = start_index - context_length + 1
     idx = len(accept_length_list) - 1
-    return [output_ids], new_token, idx, accept_length_list
+    return [output_ids], new_token, idx, accept_length_list, rejected_length_list
 
 
 if __name__ == "__main__":
@@ -139,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--adapter-path",
         type=str,
-        required=True,
+        required=False,
     )
     parser.add_argument("--model-id", type=str, required=True)
     parser.add_argument(
@@ -198,6 +202,11 @@ if __name__ == "__main__":
         default=6,
         help="The number of GPUs per model.",
     )
+    parser.add_argument(
+        "--kangaroo",
+        action='store_true',
+        help="The number of GPUs per model.",
+    )
 
     parser.add_argument(
         "--dtype",
@@ -211,8 +220,14 @@ if __name__ == "__main__":
 
     question_file = f"data/question.jsonl"
 
-    model = KangarooModel(args.model_path, args.adapter_path, args, EARLY_STOP_LAYER = args.exitlayer)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    # if args.kangaroo:
+    model = KangarooModel(base_model_name_or_path=args.model_path, 
+                        adapter_model_path=args.adapter_path, 
+                        args=args, 
+                        EARLY_STOP_LAYER=args.exitlayer, 
+                        balcony=not args.kangaroo)
+ 
+    tokenizer = AutoTokenizer.from_pretrained('HuggingFaceTB/cosmo2-tokenizer')
     do_sample = False
 
     assert not args.answer_file
