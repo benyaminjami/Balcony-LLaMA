@@ -113,7 +113,6 @@ torch==2.5.1
 tqdm==4.67.1
 transformers==4.48.0
 triton==3.1.0
--e git+https://github.com/benyaminjami/Nested-Llama.git@1ebfda6c5d74eefc1b625d03dcec3060a9077fc2#egg=trl&subdirectory=src/trl
 typing_extensions==4.12.2
 tzdata==2024.2
 urllib3==2.3.0
