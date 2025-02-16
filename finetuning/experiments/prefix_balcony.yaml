@@ -1,5 +1,5 @@
 # Model arguments
-model_name_or_path: /work/parsa/checkpoints/Smollm_1B/
+model_name_or_path: /work/projects/checkpoints/Smollm_1B/
 decontaminate: false
 torch_dtype: bfloat16
 # use_flash_attention_2: true
@@ -13,7 +13,7 @@ dataset_configs:
 dataset_splits:
 - train
 preprocessing_num_workers: 64
-load_from_disk: /work/benyamin/datasets/hf_cosmo/
+load_from_disk: /work/projects/datasets/hf_cosmo/
 # SFT trainer config
 bf16: true
 do_eval: false
@@ -30,7 +30,7 @@ lr_scheduler_type: cosine
 max_seq_length: 2048
 max_steps: 30000
 num_train_epochs: 1
-output_dir: /work/parsa/checkpoints/Smollm_1B_prefix_balcony_layer12_numvirtokens1
+output_dir: /work/projects/checkpoints/Smollm_1B_prefix_balcony_layer12_numvirtokens1
 overwrite_output_dir: true
 # per_device_eval_batch_size: 4bash 
 per_device_train_batch_size: 8

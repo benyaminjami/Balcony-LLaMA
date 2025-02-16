@@ -186,7 +186,7 @@ def main():
     else:
         raw_datasets = datasets.load_from_disk(training_args.load_from_disk)
 
-    # raw_datasets.save_to_disk("/ephemeral/parsa/datasets")
+    # raw_datasets.save_to_disk("/ephemeral/projects/datasets")
 
     train_dataset = raw_datasets["train"]
     # eval_dataset = raw_datasets["test"]
