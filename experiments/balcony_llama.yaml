@@ -1,0 +1,60 @@
+# Model arguments
+model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
+decontaminate: false
+torch_dtype: bfloat16
+
+dataset_mixer:
+  HuggingFaceTB/smollm-corpus: 1.0
+dataset_configs: 
+- cosmopedia-v2
+dataset_splits:
+- train
+preprocessing_num_workers: 64
+load_from_disk: hf_cosmo/
+
+bf16: true
+do_eval: false
+# evaluation_strategy: epoch
+gradient_accumulation_steps: 16
+gradient_checkpointing: false
+
+learning_rate: 5.0e-04
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_seq_length: 4096
+max_steps: 30000
+num_train_epochs: 1
+output_dir: /work/parsa/checkpoints/llama_8B_balcony_layers_15_18_21_gradNorm/
+overwrite_output_dir: true
+# per_device_eval_batch_size: 4
+per_device_train_batch_size: 2
+push_to_hub: false
+remove_unused_columns: true
+packing: true
+report_to:
+- none
+save_strategy: "steps"
+save_steps: 2000
+save_total_limit: 10
+seed: 42
+warmup_ratio: 0.01
+kl_weight: 1.0
+ce_weight: 0.0
+
+freeze_model: true
+meta_training: false
+tie_exit_lm_head: true
+output_exit_layers:
+  - 15
+  - 18
+  - 21
+output_full_model: true
+exit_layer_indices: 
+  - 15
+  - 18
+  - 21
+exit_decoder_layer: true
+unfreeze_layers:
+  - "exit_modules" # TODO: check if this is the right layer to unfreeze and if it works as expected

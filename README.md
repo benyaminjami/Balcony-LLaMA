@@ -1,90 +1,247 @@
-# SmolLM2
-SmolLM2 is a family of compact language models available in three size: 135M, 360M, and 1.7B parameters. They are capable of solving a wide range of tasks while being lightweight enough to run on-device. You can find our most capable model **🤏 SmolLM2-1.7B-Instruct** [here](https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct).
+# Balcony-LLaMA
 
-**News 📰**
-- **Introducing [FineMath](https://huggingface.co/datasets/HuggingFaceTB/finemath), the best public math pre-training dataset 🚀**
-- We added the code to do continual pre-training of Llama 3.2 3B on FineMath & FineWeb-Edu with `nanotron` at [pre-training/continual-pretraining](pre-training/continual-pretraining)
+<a target="_blank" href="">
+<img style="height:22pt" src="https://img.shields.io/badge/-Paper-red?style=flat&logo=arxiv"></a>
+<a target="_blank" href="https://github.com/benyaminjami/Balcony-LLaMA">
+<img style="height:22pt" src="https://img.shields.io/badge/-Code-green?style=flat&logo=github"></a>
+<a target="_blank" href="https://huggingface.co/collections/TIGER-Lab/acecoder-67a16011a6c7d65cad529eba">
+<img style="height:22pt" src="https://img.shields.io/badge/-🤗%20Models-red?style=flat"></a>
+<!-- <a target="_blank" href="https://twitter.com/DongfuJiang/status/1805438506137010326">
+<img style="height:22pt" src="https://img.shields.io/badge/-Tweet-blue?style=flat&logo=twitter"></a> -->
+<br>
+
+
+## Abstract
+
+Balcony-LLaMA introduces an innovative approach to Large Language Model (LLM) inference by implementing early exit mechanisms at strategic layers of transformer-based models. By allowing the model to exit computation early for simpler queries while utilizing the full network depth for complex tasks, Balcony-LLaMA achieves significant computational efficiency without sacrificing performance quality. This project specifically targets the Llama family of models, demonstrating how adaptive computation can be effectively applied to state-of-the-art LLMs.
+
+## Introduction
+
+Large Language Models have demonstrated remarkable capabilities across various natural language tasks, but their computational demands present challenges for widespread deployment. Balcony-LLaMA addresses this challenge by introducing "balconies" - early exit points strategically placed at different transformer layers. These balconies enable dynamic computation paths based on input complexity, potentially reducing inference time and computational costs for simpler queries.
 
 <div align="center">
-<img src="https://cdn-uploads.huggingface.co/production/uploads/61c141342aac764ce1654e43/RvHjdlRT5gGQt5mJuhXH9.png" width="700"/>
+<img src="assets/balcony_inf_v4.png" width="700" alt="Balcony-LLaMA Architecture"/>
+<p><em>Figure 1: Balcony-LLaMA architecture with early exit points at intermediate transformer layers.</em></p>
 </div>
 
-<!-- <img src="https://cdn-uploads.huggingface.co/production/uploads/61c141342aac764ce1654e43/y45hIMNREW7w_XpHYB_0q.png" alt="Evaluation Results" width="600"> -->
+## Method
 
-## Table of Contents
-1. [Usage](#usage)
-    - [Transformers](#transformers)
-    - [Chat in TRL](#chat-in-trl)
-    - [Local inference](#local-inference)
-    - [Smol-tools](#smol-tools)
-3. [Pre-training](#pre-training)
-4. [SmolVLM](#smolvlm)
-5. [Fine-tuning](#fine-tuning)
-6. [Evaluation](#evaluation)
-7. [Synthetic data pipelines](#synthetic-data-pipelines)
+Balcony-LLaMA implements early exit mechanisms by:
+
+1. Adding prediction heads ("balconies") at configurable intermediate layers of the transformer architecture
+2. Training these exit points to make accurate predictions for appropriate inputs
+3. Implementing decision mechanisms to determine whether to exit early or continue processing through deeper layers
+4. Optimizing the balance between computational efficiency and model performance
+
+The implementation supports various configurations, including:
+- Flexible placement of exit points at different layers
+- Attention-based and MLP-based exit mechanisms
+- Frozen or unfrozen base model weights
+- Meta-learning approaches for optimizing exit behavior
+
+### Training Process
+
+<div align="center">
+<img src="assets/balcony_train_v4.png" width="800" alt="Balcony-LLaMA Training Process"/>
+<p><em>Figure 2: Training process for Balcony-LLaMA. The model is trained with multiple exit heads simultaneously, with knowledge distillation from the final layer to earlier exit points.</em></p>
+</div>
+
+During training, we optimize both the early exit modules. The training process involves:
+
+1. Forward pass through the base model up to the final layer
+2. Computing losses at each exit point
+3. Applying knowledge distillation from the final layer to earlier exit points
+
+### Inference Process
+
+During inference, the model:
+
+1. Processes input through transformer layers sequentially
+2. At each exit point, computes a prediction and confidence score
+3. If confidence exceeds a threshold, exits early with the current prediction
+4. Otherwise, continues processing through deeper layers
+5. Tracks exit statistics to analyze model behavior
+
+## Implementation
+
+Balcony-LLaMA is implemented using the Hugging Face Transformers library and supports the Llama model family, with specific optimizations for Llama-3.1. The codebase includes:
+
+- Training scripts with DeepSpeed Zero-3 optimization
+- YAML-based configuration system for experiment management
+- Wandb integration for experiment tracking
+
+
+### Project Structure
+
+```
+Balcony-LLaMA/
+├── finetuning/                # Fine-tuning code
+│   ├── train.py               # Main training script
+│   ├── metatoken_learning.py  # Meta-learning implementation
+│   ├── train_config.py        # Training configuration utilities
+│   ├── kd_trainer.py          # Knowledge distillation trainer
+│   └── transformers_extra/    # Extensions to transformers library
+├── experiments/               # Experiment configurations
+│   ├── balcony_llama.yaml     # Configuration for Llama with balconies
+│   ├── balcony_attention.yaml # Attention-based exit experiments
+│   ├── balcony_mlp.yaml       # MLP-based exit experiments
+│   ├── balcony_unfrozen.yaml  # Experiments with unfrozen weights
+│   └── meta_balcony.yaml      # Meta-learning approaches
+├── logs/                      # Training logs
+├── wandb/                     # Weights & Biases logs
+├── train.sh                   # Training launcher script
+├── requirements.txt           # Project dependencies
+├── deepspeed_zero3.yaml       # DeepSpeed configuration
+└── ddp.yaml                   # Distributed training configuration
+```
+
+## Experimental Setup
+
+Experiments are configured through YAML files that specify:
+- Base model (e.g., meta-llama/Llama-3.1-8B-Instruct)
+- Exit layer placement (e.g., layers 15, 18, 21)
+- Training parameters (learning rate, batch size, sequence length)
+- Optimization strategies (frozen layers, specific unfrozen components)
+
+Example configuration from `experiments/balcony_llama.yaml`:
+
+```yaml
+# Model arguments
+model_name_or_path: meta-llama/Llama-3.1-8B-Instruct
+decontaminate: false
+torch_dtype: bfloat16
+
+dataset_mixer:
+  HuggingFaceTB/smollm-corpus: 1.0
+dataset_configs: 
+- cosmopedia-v2
+dataset_splits:
+- train
+preprocessing_num_workers: 64
+load_from_disk: hf_cosmo/
+
+bf16: true
+do_eval: false
+gradient_accumulation_steps: 16
+gradient_checkpointing: false
+
+learning_rate: 5.0e-04
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_seq_length: 4096
+max_steps: 30000
+num_train_epochs: 1
+output_dir: /work/parsa/checkpoints/llama_8B_balcony_layers_15_18_21_gradNorm/
+overwrite_output_dir: true
+per_device_train_batch_size: 2
+push_to_hub: false
+remove_unused_columns: true
+packing: true
+report_to:
+- none
+save_strategy: "steps"
+save_steps: 2000
+save_total_limit: 10
+seed: 42
+warmup_ratio: 0.01
+kl_weight: 1.0
+ce_weight: 0.0
+
+freeze_model: true
+meta_training: false
+tie_exit_lm_head: true
+output_exit_layers:
+  - 15
+  - 18
+  - 21
+output_full_model: true
+exit_layer_indices: 
+  - 15
+  - 18
+  - 21
+exit_decoder_layer: true
+unfreeze_layers:
+  - "exit_modules" # Only unfreeze the exit module layers
+```
+
+The project includes various experimental configurations exploring different aspects of early exit mechanisms:
+- Basic balcony configurations
+- Attention-based exits
+- MLP-based exits
+- Unfrozen model variants
+- Meta-learning approaches
 
 ## Usage
-Our most powerful model is `SmolLM2-1.7B-Instruct`, which you can use as an assistant with `transformers`, `trl`, or using quantized versions with tools like `llama.cpp`, `MLX`, and `transformers.js`. For lighter applications, you can also use the smaller models `SmolLM2-360M` and`SmolLM2-135M`, which are suitable for on-device usage and can be integrated similarly.
-All available in this [collection](https://huggingface.co/collections/HuggingFaceTB/smollm2-6723884218bcda64b34d7db9).
 
-### Transformers
+For a complete list of dependencies, see the `requirements.txt` file.
+
+### Installation
+
 ```bash
-pip install transformers
+git clone https://github.com/yourusername/Balcony-LLaMA.git
+cd Balcony-LLaMA
+pip install -r requirements.txt
 ```
+
+### Training
+
+To train a model with balcony layers, use the provided training script:
+
+```bash
+bash train.sh experiments/balcony_llama.yaml
+```
+
+This will launch training with DeepSpeed Zero-3 optimization and log the results to the specified output directory.
+
+### inference
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
-checkpoint = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+from transformers_extra import *
+# Load the model with balcony exits
+model_path = "path/to/saved/balcony_llama"
+exit_layer = 12 # The layer index of desired exit balcony
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+model = AutoModelForCausalLM.from_pretrained(model_path, output_exit_layers=exit_layer)
 
-device = "cuda" # for GPU usage or "cpu" for CPU usage
-tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-# for multiple GPUs install accelerate and do `model = AutoModelForCausalLM.from_pretrained(checkpoint, device_map="auto")`
-model = AutoModelForCausalLM.from_pretrained(checkpoint).to(device)
-
-messages = [{"role": "user", "content": "Write a 100-word article on 'Benefits of Open-Source in AI research"}]
-input_text=tokenizer.apply_chat_template(messages, tokenize=False)
-inputs = tokenizer.encode(input_text, return_tensors="pt").to(device)
-outputs = model.generate(inputs, max_new_tokens=50, temperature=0.2, top_p=0.9, do_sample=True)
+# Generate text with early exits
+input_text = "Translate the following English text to French: 'Hello, how are you?'"
+inputs = tokenizer(input_text, return_tensors="pt")
+outputs = model.generate(**inputs, max_length=100)
 print(tokenizer.decode(outputs[0]))
 ```
 
-### Chat in TRL
-You can also use the TRL CLI to chat with the model from the terminal:
-```bash
-pip install trl
-trl chat --model_name_or_path HuggingFaceTB/SmolLM2-1.7B-Instruct --device cpu
+## Conclusion
+
+Balcony-LLaMA demonstrates that early exit mechanisms can be effectively applied to large language models, offering a promising approach to reducing the computational demands of these powerful systems without significantly compromising their capabilities. This work contributes to ongoing efforts to make advanced AI systems more efficient and accessible.
+
+## Future Work
+
+- Exploration of dynamic routing strategies between exit points
+- Application to multimodal models
+- Optimization for specific deployment scenarios
+- Integration with quantization techniques for further efficiency
+- Extending the approach to other model architectures beyond Llama
+
+## Acknowledgements
+
+This project builds upon the work of the Llama model family by Meta AI and incorporates techniques from various research papers on early exit mechanisms for transformer models.
+
+
+## Citation
+
+If you use Balcony-LLaMA in your research, please cite:
+
+```bibtex
+#TODO: fill here
 ```
 
-You can find more details on how to leverage the model for use cases such as text summarization, text rewriting and function calling in the model card: https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct 
+## License
 
-### Local inference
-You can use the models locally with frameworks like `llama.cpp`, `MLX`, `MLC` and `transformers.js`. You can find the instructions to run SmolLM2 with these frameworks at [local-inference](local_inference/README.md).
+This project is licensed under the terms of the license included in the repository.
 
-### Smol-tools
-A collection of lightweight AI-powered tools built with LLaMA.cpp and small language models. These tools are designed to run locally on your machine without requiring expensive GPU resources.
-Further instructions on how to use the tools can be found in the [smol-tools README](smol_tools/README.md).
+## Contact
 
-## Pre-training
-You can find scripts for launching pre-training with [nanotron](https://github.com/huggingface/nanotron/) under [pre-training](pre-training/README.md), we share the exact configs for training SmolLM1 and will upload SmolLM2's configs soon.
-
-### SmolVLM
-We released [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct) a compact open multimodal model that accepts arbitrary sequences of image and text inputs to produce text outputs. It uses SmolLM2-1.7B-Instruct as a language backbone and is designed for efficiency. SmolVLM can answer questions about images, describe visual content, create stories grounded on multiple images, or function as a pure language model without visual inputs. Its lightweight architecture makes it suitable for on-device applications while maintaining strong performance on multimodal tasks. More details in this blog post: https://huggingface.co/blog/smolvlm
-
-Check [inference/smolvlm](inference/smolvlm/README.md) for more details and [finetuning/Smol_VLM_FT.ipynb](https://github.com/huggingface/smollm/blob/147aeabd358fc07bdc1e0717f5918f8cd4583cf4/finetuning/Smol_VLM_FT.ipynb) for some finetuning code.
-
-## Fine-tuning
-You can find an example script to finetune SmolLM2 using `TRL` and `PEFT` in the `finetuning` folder. We also link to our post-training scripts for SmolLM2 using the alignment handbook.
-
-## Evaluation
-![image/png](https://cdn-uploads.huggingface.co/production/uploads/61c141342aac764ce1654e43/T-cHJVA7FBaI0cgDApzEj.png)
-
-You can find more detailed evaluation of each model size in the model cards in this [collection](https://huggingface.co/collections/HuggingFaceTB/smollm2-6723884218bcda64b34d7db9).
-We use [lighteval](https://github.com/huggingface/lighteval) for all our evaluations, for more details refer to the [evaluation README](evaluation/README.md).
-
-## Synthetic data pipelines
-We released [SmolTalk](https://huggingface.co/datasets/HuggingFaceTB/smoltalk) the SFT dataset used for building SmolLM2 instruct models. It was created with [distilabel](https://github.com/argilla-io/distilabel) and you can check and execute the synthetic data pipelines in [distilabel_pipelines README](distilabel_pipelines/README.md)
-
-<div align="center">
-<img src="https://cdn-uploads.huggingface.co/production/uploads/61c141342aac764ce1654e43/JLTEbnsBQ_qY032mxFzgC.png" width="800"/>
-<p><em>Comparison of models finetuned on SmolTalk and Orca AgentInstruct 1M. For more details, refer to the <a href="https://huggingface.co/datasets/HuggingFaceTB/smoltalk" target="_blank">dataset card</a>.</em></p>
-</div>
+For questions or issues, please open an issue on the GitHub repository or contact the authors directly.

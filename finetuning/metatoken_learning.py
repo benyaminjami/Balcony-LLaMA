@@ -1,22 +1,10 @@
 from peft.utils import (
     SAFETENSORS_WEIGHTS_NAME,
-    TRANSFORMERS_MODELS_TO_PREFIX_TUNING_POSTPROCESS_MAPPING,
     WEIGHTS_NAME,
-    PeftType,
-    TaskType,
-    _get_batch_size,
-    _prepare_prompt_learning_config,
-    _set_adapter,
-    _set_trainable,
     get_peft_model_state_dict,
     id_tensor_storage,
-    infer_device,
-    load_peft_weights,
-    map_cache_to_layer_device_map,
-    set_peft_model_state_dict,
-    shift_tokens_right,
 )
-from typing import Any, Literal, Optional, Union
+from typing import Any, Optional, Union
 import os
 import warnings
 import collections

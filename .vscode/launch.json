@@ -1,50 +1,50 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Accelerate Training",
-            "type": "debugpy",
+            "name": "Debug Balcony-LLaMA Training",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/finetuning/train.py",
+            "args": [
+                "${input:experimentYaml}"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "WANDB_API_KEY": "44735889af01972b7a789b2a6b9d6f95ca6b9615",
+                "WANDB_PROJECT": "Nested_FT",
+                "ACCELERATE_LOG_LEVEL": "info"
+            },
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug with Accelerate",
+            "type": "python",
             "request": "launch",
             "module": "accelerate.commands.launch",
             "args": [
-                "--multi_gpu",
                 "--config_file",
-                "${workspaceFolder}/finetuning/ddp.yaml",
+                "${workspaceFolder}/ddp.yaml",
                 "${workspaceFolder}/finetuning/train.py",
-                "${workspaceFolder}/finetuning/experiments/prefix_balcony.yaml"
+                "${input:experimentYaml}"
             ],
+            "console": "integratedTerminal",
+            "justMyCode": false,
             "env": {
+                "WANDB_API_KEY": "44735889af01972b7a789b2a6b9d6f95ca6b9615",
+                "WANDB_PROJECT": "Nested_FT",
                 "ACCELERATE_LOG_LEVEL": "info"
             },
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}",
-            "python": "${command:python.interpreterPath}",
-            "preLaunchTask": "",
-            "postDebugTask": ""
-        },
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+    "inputs": [
         {
-            "name": "Launch Test Script",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/finetuning/test.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Python Debugger: Current File with Arguments", 
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal",
-            "args": "${command:pickArgs}"
+            "id": "experimentYaml",
+            "type": "promptString",
+            "description": "Path to experiment YAML file",
+            "default": "experiments/your_experiment.yaml"
         }
     ]
 }
