@@ -235,7 +235,15 @@ This project builds upon the work of the Llama model family by Meta AI and incor
 If you use Balcony-LLaMA in your research, please cite:
 
 ```bibtex
-#TODO: fill here
+@misc{jamialahmadi2025balconylightweightapproachdynamic,
+      title={Balcony: A Lightweight Approach to Dynamic Inference of Generative Language Models}, 
+      author={Benyamin Jamialahmadi and Parsa Kavehzadeh and Mehdi Rezagholizadeh and Parsa Farinneya and Hossein Rajabzadeh and Aref Jafari and Boxing Chen and Marzieh Tahaei},
+      year={2025},
+      eprint={2503.05005},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2503.05005}, 
+}
 ```
 
 ## License
