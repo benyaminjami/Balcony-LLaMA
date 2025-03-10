@@ -4,7 +4,7 @@
 <img style="height:22pt" src="https://img.shields.io/badge/-Paper-red?style=flat&logo=arxiv"></a>
 <a target="_blank" href="https://github.com/benyaminjami/Balcony-LLaMA">
 <img style="height:22pt" src="https://img.shields.io/badge/-Code-green?style=flat&logo=github"></a>
-<a target="_blank" href="https://huggingface.co/collections/TIGER-Lab/acecoder-67a16011a6c7d65cad529eba">
+<a target="_blank" href="https://huggingface.co/collections/parsakaveh/balcony-67cee9f9369495b79bd72b10">
 <img style="height:22pt" src="https://img.shields.io/badge/-🤗%20Models-red?style=flat"></a>
 <!-- <a target="_blank" href="https://twitter.com/DongfuJiang/status/1805438506137010326">
 <img style="height:22pt" src="https://img.shields.io/badge/-Tweet-blue?style=flat&logo=twitter"></a> -->
