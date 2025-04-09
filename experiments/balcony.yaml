@@ -10,7 +10,7 @@ dataset_configs:
 dataset_splits:
 - train
 preprocessing_num_workers: 64
-load_from_disk: /mnt/nfs/node3/benyamin/benyamin/datasets/hf_cosmo/
+load_from_disk: datasets/hf_cosmo/
 # SFT trainer config
 bf16: true
 do_eval: false
