@@ -1,15 +1,5 @@
 # Balcony-LLaMA
 
-<a target="_blank" href="">
-<img style="height:22pt" src="https://img.shields.io/badge/-Paper-red?style=flat&logo=arxiv"></a>
-<a target="_blank" href="https://github.com/benyaminjami/Balcony-LLaMA">
-<img style="height:22pt" src="https://img.shields.io/badge/-Code-green?style=flat&logo=github"></a>
-<a target="_blank" href="https://huggingface.co/collections/parsakaveh/balcony-67cee9f9369495b79bd72b10">
-<img style="height:22pt" src="https://img.shields.io/badge/-🤗%20Models-red?style=flat"></a>
-<!-- <a target="_blank" href="https://twitter.com/DongfuJiang/status/1805438506137010326">
-<img style="height:22pt" src="https://img.shields.io/badge/-Tweet-blue?style=flat&logo=twitter"></a> -->
-<br>
-
 
 ## Abstract
 
@@ -234,17 +224,6 @@ This project builds upon the work of the Llama model family by Meta AI and incor
 
 If you use Balcony-LLaMA in your research, please cite:
 
-```bibtex
-@misc{jamialahmadi2025balconylightweightapproachdynamic,
-      title={Balcony: A Lightweight Approach to Dynamic Inference of Generative Language Models}, 
-      author={Benyamin Jamialahmadi and Parsa Kavehzadeh and Mehdi Rezagholizadeh and Parsa Farinneya and Hossein Rajabzadeh and Aref Jafari and Boxing Chen and Marzieh Tahaei},
-      year={2025},
-      eprint={2503.05005},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2503.05005}, 
-}
-```
 
 ## License
 
