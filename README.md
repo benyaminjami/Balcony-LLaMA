@@ -1,6 +1,6 @@
 # Balcony-LLaMA
 
-<a target="_blank" href="">
+<a target="_blank" href="https://arxiv.org/abs/2503.05005">
 <img style="height:22pt" src="https://img.shields.io/badge/-Paper-red?style=flat&logo=arxiv"></a>
 <a target="_blank" href="https://github.com/benyaminjami/Balcony-LLaMA">
 <img style="height:22pt" src="https://img.shields.io/badge/-Code-green?style=flat&logo=github"></a>
